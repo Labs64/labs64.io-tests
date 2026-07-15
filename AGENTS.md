@@ -14,6 +14,13 @@ Every test must map to an operation that actually exists in the module's OpenAPI
 2. Read each operation's `x-labs64-auth` annotation (`public: true`, or `tenant: true` + `scopes: [...]`) — this is the same annotation the authproxy's Cedar policy generation reads, and it is the source of truth for what the auth/authz matrix in `authz.robot` should assert.
 3. Use the `test-suite-steward` skill (workspace-level `.claude/skills/test-suite-steward/`) to diff existing tests against the current spec and scaffold the matrix — it automates steps 1–2, and also covers running and auditing the suite more broadly.
 
+## Running tests
+
+`just` wraps the `robot` invocations documented in `README.md` (venv setup, tag filters, output
+to `results/`) — `just --list` for the full set, `just smoke` / `just regression` / `just
+test-module <name>` / `just log` for the common ones. It's a thin wrapper, not a framework layer:
+every recipe still shells out to plain `robot` — see "What NOT to do" below.
+
 ## Gateway edge only
 
 All base URLs point at the Traefik/authproxy gateway (`http://gateway.localhost/<module>/api/v1`), never a backend port directly. Cedar authorization is enforced at the gateway; backends trust gateway-supplied `X-Auth-*` headers and in the `local` profile may even fall back to a default tenant. Hitting a backend directly makes an authz test meaningless — it would pass or fail regardless of the token.

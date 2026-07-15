@@ -67,6 +67,8 @@ You need a running Labs64.IO stack reachable through its gateway edge — either
 
 ## Running Tests
 
+Fastest path: `just` (see `justfile` — `just smoke`, `just regression`, `just test-module auditflow`, `just log`, etc.; `just --list` for the full set). It wraps venv setup and the `robot` invocations below, writing output to `results/`. The rest of this section shows the underlying `robot` commands directly, for when you need a variation the justfile doesn't cover.
+
 **All smoke tests (fast, every PR):**
 ```bash
 robot --include smoke tests/
