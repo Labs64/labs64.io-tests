@@ -1,5 +1,8 @@
-# labs64.io-tests
-Labs64.IO — Integration & Regression Test Suite
+<p align="center"><img src="https://raw.githubusercontent.com/Labs64/.github/master/assets/labs64-io-ecosystem.png" alt="Labs64.IO Ecosystem"></p>
+
+# Labs64.IO :: Tests
+
+Integration & Regression Test Suite for the [Labs64.IO Ecosystem](https://labs64.io).
 
 ## Overview
 
