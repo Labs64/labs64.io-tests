@@ -56,6 +56,20 @@ Publish With Correct Scope Is Allowed
     Response Status Should Be    ${response}    200
     [Teardown]    Delete All Sessions
 
+Publish With Multiple Scopes Including The Required One Is Allowed
+    [Documentation]    A token carrying several scopes — one of which is the required
+    ...                audit-event:write, the rest irrelevant — must still be allowed. The
+    ...                Cedar edge policy uses OR/contains semantics over the scope set
+    ...                (context.scopes.contains(...)); an unrelated extra scope riding along
+    ...                must never cause a false deny.
+    [Tags]    auditflow    regression    critical    auth
+    Create Session With Scope    auditflow-multi-scope    ${AUDITFLOW_BASE_URL}
+    ...    audit-event:read audit-event:write customer:read
+    ${event}=    Build Valid Audit Event    multi-scope-check
+    ${response}=    Publish Audit Event    ${event}    alias=auditflow-multi-scope
+    Response Status Should Be    ${response}    200
+    [Teardown]    Delete All Sessions
+
 Unauthenticated Request Does Not Return A 500
     [Documentation]    An unauthenticated request must not produce an unexpected server error.
     ...                HTTP 500 on an auth-gated path may indicate a misconfigured auth filter
