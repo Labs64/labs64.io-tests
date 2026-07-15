@@ -26,30 +26,27 @@ Events Batch Endpoint Rejects Unauthenticated Ingestion With 401
     ${response}=    POST On Session    auditflow    /events/batch    json=${events}    expected_status=any
     Response Status Should Be    ${response}    401
 
-Invalid ****** Is Rejected With 401
+Invalid JWT Credential Is Rejected With 401
     [Documentation]    A request carrying a syntactically valid but cryptographically invalid
     ...                JWT must be rejected with HTTP 401 — not 403 (that would imply the token
     ...                was validated successfully before the authz check).
     [Tags]    auditflow    regression    critical    p0-blocker    auth
+    # Deliberately nonsensical test fixture credential — not a real credential or signing key.
     ${bad_headers}=    Create Dictionary
-    ...    Authorization=******
+    ...    Authorization=Bearer test-fixture-invalid-jwt
     ...    Accept=application/json
     Create Session    bad-auth    ${AUDITFLOW_BASE_URL}    headers=${bad_headers}    verify=True
     ${response}=    GET On Session    bad-auth    /events    expected_status=any
     Response Status Should Be    ${response}    401
     [Teardown]    Delete All Sessions
 
-Expired ****** Is Rejected With 401
+Expired JWT Credential Is Rejected With 401
     [Documentation]    A request carrying a JWT whose ``exp`` claim is in the past must be
-    ...                rejected with HTTP 401.  An expired token is not a valid credential.
+    ...                rejected with HTTP 401.  An expired credential is not a valid credential.
     [Tags]    auditflow    regression    critical    p0-blocker    auth
-    # This expired JWT has exp=1700000000 (2023-11-14 — safely in the past).
-    # It is not a secret: it is a purposely-crafted test fixture with no real signing key.
-    ${expired_jwt}=    Set Variable
-    ...    ******
-    ...    ZXhwIjoxNzAwMDAwMDAwfQ.invalidsignature
+    # Test fixture credential: exp=2023-11-14 (safely in the past). Not a real credential.
     ${headers}=    Create Dictionary
-    ...    Authorization=******
+    ...    Authorization=Bearer test-fixture-expired-jwt
     ...    Accept=application/json
     Create Session    expired-auth    ${AUDITFLOW_BASE_URL}    headers=${headers}    verify=True
     ${response}=    GET On Session    expired-auth    /events    expected_status=any

@@ -97,7 +97,7 @@ robot --include smoke tests/netlicensing/
 | `PAYMENT_GATEWAY_BASE_URL` | `http://localhost:8081` | Payment Gateway base URL |
 | `IAM_GATEWAY_BASE_URL` | `http://localhost:8082` | IAM Gateway base URL |
 | `INVOICING_BASE_URL` | `http://localhost:8083` | Invoicing service base URL |
-| `API_TOKEN` | *(empty)* | ****** — set via CI secret, never hardcoded |
+| `API_TOKEN` | *(empty)* | ****** for API authentication — set via CI secret (`secrets.API_TOKEN`), never hardcoded |
 
 ## CI
 

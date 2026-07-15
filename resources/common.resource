@@ -18,8 +18,9 @@ ${API_TOKEN}                  %{API_TOKEN=${EMPTY}}
 Create Authenticated Session
     [Documentation]    Create an HTTP session with bearer-token authentication headers.
     [Arguments]    ${alias}    ${base_url}    ${token}=${API_TOKEN}
+    ${auth_header}=    Set Variable    Bearer ${token}
     ${headers}=    Create Dictionary
-    ...    Authorization=******
+    ...    Authorization=${auth_header}
     ...    Accept=application/json
     ...    Content-Type=application/json
     Create Session    ${alias}    ${base_url}    headers=${headers}    verify=True
