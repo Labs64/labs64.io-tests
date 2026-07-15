@@ -12,6 +12,12 @@ ${PAYMENT_GATEWAY_SESSION_ALIAS}     payment-gateway
 ${PAYMENT_PROVIDER_READ_SCOPE}       payment-provider:read
 ${PAYMENT_PROVIDER_WRITE_SCOPE}      payment-provider:write
 ${NOOP_PROVIDER}                     noop
+${PAYMENT_GATEWAY_PROVIDERS_PATH}    /payment-gateway/api/v1/payment-providers
+
+# Local-k8s-only: Payment Gateway's own backend deployment name for kubectl log corroboration
+# (see AGENTS.md "Local-only pod-log corroboration"). Shared namespace/authproxy deployment
+# vars live in common.resource. Never used unless `Local Kubernetes Available` is true.
+${PAYMENT_GATEWAY_K8S_DEPLOYMENT}    %{PAYMENT_GATEWAY_K8S_DEPLOYMENT=labs64io-payment-gateway}
 
 *** Keywords ***
 Create Payment Gateway Session With Scope
@@ -63,3 +69,26 @@ Delete Payment Provider
     [Arguments]    ${payment_provider_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
     ${response}=    DELETE On Session    ${alias}    /payment-providers/${payment_provider_id}    expected_status=any
     RETURN    ${response}
+
+Authproxy Logs Should Show No-Token Rejection For Payment Providers
+    [Documentation]    Local-k8s-only. Thin wrapper over the generic `Authproxy Logs Should
+    ...                Show No-Token Rejection` fixed to GET /payment-providers.
+    [Arguments]    ${since}=90s
+    Authproxy Logs Should Show No-Token Rejection    GET    ${PAYMENT_GATEWAY_PROVIDERS_PATH}    ${since}
+
+Authproxy Logs Should Show Cedar Decision For Payment Providers
+    [Documentation]    Local-k8s-only. Thin wrapper over the generic `Authproxy Logs Should
+    ...                Show Cedar Decision` fixed to Payment Gateway's listPaymentProviders
+    ...                operation — the anchor op the base (non-k8s) scope-matrix cases already
+    ...                use, so the log-corroboration cases mirror them 1:1.
+    ...
+    ...                Note: unlike AuditFlow, these cases corroborate only the authproxy's edge
+    ...                decision, not backend delivery. AuditFlow's request schema carries a
+    ...                client-supplied ``correlationId`` that makes a specific event
+    ...                unambiguously identifiable in the backend's logs; payment-provider reads
+    ...                have no equivalent per-request identifier, so a backend-log check here
+    ...                couldn't be reliably attributed to one specific test call. Edge-decision
+    ...                corroboration is still the security-relevant half — it proves Cedar itself
+    ...                recorded the deny/allow, not just that the HTTP client received it.
+    [Arguments]    ${outcome}    ${since}=90s
+    Authproxy Logs Should Show Cedar Decision    payment-gateway    listPaymentProviders    ${outcome}    ${since}

@@ -12,7 +12,7 @@ Documentation    AuditFlow authentication & authorization regression, asserted e
 ...              cleanly outside the local k3d dev cluster, so CI never fails on them. See
 ...              AGENTS.md "Local-only pod-log corroboration" for the full rationale/scope.
 Resource         ../../resources/auditflow.resource
-Suite Teardown   Delete All Sessions
+Test Teardown    Delete All Sessions
 
 *** Test Cases ***
 Publish Without Authorization Header Returns 401
@@ -24,7 +24,6 @@ Publish Without Authorization Header Returns 401
     ${event}=    Build Valid Audit Event    unauth-check
     ${response}=    Publish Audit Event    ${event}
     Response Status Should Be    ${response}    401
-    [Teardown]    Delete All Sessions
 
 Publish With Malformed Bearer Credential Returns 401
     [Documentation]    A syntactically-invalid bearer credential must be rejected with 401 —
@@ -40,7 +39,6 @@ Publish With Malformed Bearer Credential Returns 401
     ${event}=    Build Valid Audit Event    malformed-check
     ${response}=    POST On Session    auditflow-bad-auth    /audit/publish    json=${event}    expected_status=any
     Response Status Should Be    ${response}    401
-    [Teardown]    Delete All Sessions
 
 Publish With Wrong Scope Is Denied With 403
     [Documentation]    A valid, correctly-signed token that carries a scope other than
@@ -51,7 +49,6 @@ Publish With Wrong Scope Is Denied With 403
     ${event}=    Build Valid Audit Event    wrong-scope-check
     ${response}=    Publish Audit Event    ${event}    alias=auditflow-wrong-scope
     Response Status Should Be    ${response}    403
-    [Teardown]    Delete All Sessions
 
 Publish With Correct Scope Is Allowed
     [Documentation]    A token carrying exactly the required audit-event:write scope must be
@@ -61,7 +58,6 @@ Publish With Correct Scope Is Allowed
     ${event}=    Build Valid Audit Event    correct-scope-check
     ${response}=    Publish Audit Event    ${event}    alias=auditflow-correct-scope
     Response Status Should Be    ${response}    200
-    [Teardown]    Delete All Sessions
 
 Publish With Multiple Scopes Including The Required One Is Allowed
     [Documentation]    A token carrying several scopes — one of which is the required
@@ -75,7 +71,6 @@ Publish With Multiple Scopes Including The Required One Is Allowed
     ${event}=    Build Valid Audit Event    multi-scope-check
     ${response}=    Publish Audit Event    ${event}    alias=auditflow-multi-scope
     Response Status Should Be    ${response}    200
-    [Teardown]    Delete All Sessions
 
 Publish With Valid Token Lacking Any Scope Is Denied With 403
     [Documentation]    A validly-signed token that carries NO scopes at all (mock-oidc
@@ -88,7 +83,6 @@ Publish With Valid Token Lacking Any Scope Is Denied With 403
     ${event}=    Build Valid Audit Event    no-scope-check
     ${response}=    Publish Audit Event    ${event}    alias=auditflow-no-scope
     Response Status Should Be    ${response}    403
-    [Teardown]    Delete All Sessions
 
 Unauthenticated Request Does Not Return A 500
     [Documentation]    An unauthenticated request must not produce an unexpected server error.
@@ -101,7 +95,6 @@ Unauthenticated Request Does Not Return A 500
     ${status}=    Convert To Integer    ${response.status_code}
     Should Be True    ${status} != 500
     ...    msg=Unauthenticated request caused HTTP 500 — possible misconfigured auth filter. Expected 401.
-    [Teardown]    Delete All Sessions
 
 Authproxy Logs Confirm Unauthenticated Publish Was Rejected At The Edge
     [Documentation]    Local-k8s-only companion to "Publish Without Authorization Header
@@ -115,7 +108,6 @@ Authproxy Logs Confirm Unauthenticated Publish Was Rejected At The Edge
     ${response}=    Publish Audit Event    ${event}
     Response Status Should Be    ${response}    401
     Authproxy Logs Should Show No-Token Rejection For Publish
-    [Teardown]    Delete All Sessions
 
 Authproxy And Backend Logs Confirm Wrong-Scope Publish Was Denied At The Edge
     [Documentation]    Local-k8s-only companion to "Publish With Wrong Scope Is Denied With
@@ -131,7 +123,6 @@ Authproxy And Backend Logs Confirm Wrong-Scope Publish Was Denied At The Edge
     Response Status Should Be    ${response}    403
     Authproxy Logs Should Show Cedar Decision For Publish    enforced-deny
     AuditFlow Backend Logs Should Not Contain Correlation Id    ${correlation_id}
-    [Teardown]    Delete All Sessions
 
 Authproxy And Backend Logs Confirm Correct-Scope Publish Was Allowed And Delivered
     [Documentation]    Local-k8s-only companion to "Publish With Correct Scope Is Allowed":
@@ -147,7 +138,6 @@ Authproxy And Backend Logs Confirm Correct-Scope Publish Was Allowed And Deliver
     Response Status Should Be    ${response}    200
     Authproxy Logs Should Show Cedar Decision For Publish    enforced-allow
     AuditFlow Backend Logs Should Contain Correlation Id    ${correlation_id}
-    [Teardown]    Delete All Sessions
 
 Authproxy And Backend Logs Confirm Multiple-Scopes Publish Was Allowed And Delivered
     [Documentation]    Local-k8s-only companion to "Publish With Multiple Scopes Including The
@@ -164,7 +154,6 @@ Authproxy And Backend Logs Confirm Multiple-Scopes Publish Was Allowed And Deliv
     Response Status Should Be    ${response}    200
     Authproxy Logs Should Show Cedar Decision For Publish    enforced-allow
     AuditFlow Backend Logs Should Contain Correlation Id    ${correlation_id}
-    [Teardown]    Delete All Sessions
 
 Authproxy And Backend Logs Confirm No-Scope Publish Was Denied At The Edge
     [Documentation]    Local-k8s-only companion to "Publish With Valid Token Lacking Any Scope
@@ -180,4 +169,3 @@ Authproxy And Backend Logs Confirm No-Scope Publish Was Denied At The Edge
     Response Status Should Be    ${response}    403
     Authproxy Logs Should Show Cedar Decision For Publish    enforced-deny
     AuditFlow Backend Logs Should Not Contain Correlation Id    ${correlation_id}
-    [Teardown]    Delete All Sessions

@@ -48,6 +48,13 @@ labs64.io-tests/
 | `tenant-isolation` | Cross-tenant / cross-scope isolation scenarios | — |
 | `error-handling` | Error path / negative testing | — |
 
+> `contract`, `e2e`, and `flaky` are **reserved for future use** — no test currently carries
+> them, and that's not drift. `contract` is earmarked for tests that mirror a path Schemathesis
+> already covers (informational, not gating); `e2e` for cross-service flows spanning more than
+> one module; `flaky` for quarantining a genuinely flaky case without deleting its coverage.
+> They exist in the taxonomy so a test can adopt one the moment it needs it, without a README
+> update first.
+
 ## Setup
 
 ```bash
@@ -120,6 +127,6 @@ The GitHub Actions workflow (`.github/workflows/regression-suite.yml`) runs:
 |---|---|---|
 | Phantom JWT (auth gap between spec and implementation) | `tests/auditflow/authz.robot` | `p0-blocker` |
 
-## Adding tests for another module
+## Adding, running, or auditing tests
 
-See the `gatekeeper` skill (workspace-level `.claude/skills/gatekeeper/`) — it reads a module's `x-labs64-auth` OpenAPI annotations and scaffolds/updates the auth/authz matrix from the contract itself, and flags tests that reference endpoints no longer present in the spec.
+See the `test-suite-steward` skill (workspace-level `.claude/skills/test-suite-steward/`) — it covers where a new test belongs, the OpenAPI `x-labs64-auth`-driven authz matrix, how to run and interpret results, and a periodic suite-health audit (drift, coverage gaps, duplication, flaky handling).

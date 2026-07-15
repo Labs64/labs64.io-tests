@@ -12,7 +12,7 @@ Every test must map to an operation that actually exists in the module's OpenAPI
 
 1. Read the module's OpenAPI spec — its `paths` are the only endpoints that exist. Do not guess at conventional-sounding endpoints (`/health`, `/events`) that "should" exist — this suite previously drifted this way (auditflow tests targeted a `GET /events` query endpoint that was never in the contract; AuditFlow is a router with no query API by design, see its `AGENTS.md`).
 2. Read each operation's `x-labs64-auth` annotation (`public: true`, or `tenant: true` + `scopes: [...]`) — this is the same annotation the authproxy's Cedar policy generation reads, and it is the source of truth for what the auth/authz matrix in `authz.robot` should assert.
-3. Use the `gatekeeper` skill (workspace-level `.claude/skills/gatekeeper/`) to diff existing tests against the current spec and scaffold the matrix — it automates steps 1–2.
+3. Use the `test-suite-steward` skill (workspace-level `.claude/skills/test-suite-steward/`) to diff existing tests against the current spec and scaffold the matrix — it automates steps 1–2, and also covers running and auditing the suite more broadly.
 
 ## Gateway edge only
 
