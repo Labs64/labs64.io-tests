@@ -1,0 +1,138 @@
+name: api-edge-regression-suite
+
+on:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'   # nightly full regression
+
+env:
+  # Secrets are injected via GitHub Actions secrets — never hardcoded.
+  # Override these in your repository / environment secrets.
+  NETLICENSING_BASE_URL: ${{ vars.NETLICENSING_BASE_URL || 'https://go.netlicensing.io/core/v2/rest' }}
+  AUDITFLOW_BASE_URL: ${{ vars.AUDITFLOW_BASE_URL || 'http://localhost:8080' }}
+  PAYMENT_GATEWAY_BASE_URL: ${{ vars.PAYMENT_GATEWAY_BASE_URL || 'http://localhost:8081' }}
+  IAM_GATEWAY_BASE_URL: ${{ vars.IAM_GATEWAY_BASE_URL || 'http://localhost:8082' }}
+  INVOICING_BASE_URL: ${{ vars.INVOICING_BASE_URL || 'http://localhost:8083' }}
+  API_TOKEN: ${{ secrets.API_TOKEN }}
+
+jobs:
+  smoke:
+    name: Smoke — ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - netlicensing
+          - auditflow
+          - payment-gateway
+          - iam-gateway
+          - invoicing
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install Robot Framework and libraries
+        run: pip install -r requirements.txt
+
+      - name: Smoke suite — ${{ matrix.service }}
+        run: |
+          robot \
+            --include smoke \
+            --outputdir results/${{ matrix.service }} \
+            --output output.xml \
+            --log log.html \
+            --report report.html \
+            tests/${{ matrix.service }}/
+        env:
+          NETLICENSING_BASE_URL: ${{ env.NETLICENSING_BASE_URL }}
+          AUDITFLOW_BASE_URL: ${{ env.AUDITFLOW_BASE_URL }}
+          PAYMENT_GATEWAY_BASE_URL: ${{ env.PAYMENT_GATEWAY_BASE_URL }}
+          IAM_GATEWAY_BASE_URL: ${{ env.IAM_GATEWAY_BASE_URL }}
+          INVOICING_BASE_URL: ${{ env.INVOICING_BASE_URL }}
+          API_TOKEN: ${{ env.API_TOKEN }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-report-${{ matrix.service }}
+          path: results/${{ matrix.service }}
+
+  p0-blockers:
+    name: P0 Blocker Tests
+    runs-on: ubuntu-latest
+    needs: smoke
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install Robot Framework and libraries
+        run: pip install -r requirements.txt
+
+      - name: P0-blocker regression tests
+        run: |
+          robot \
+            --include p0-blocker \
+            --outputdir results/p0-blockers \
+            --output output.xml \
+            --log log.html \
+            --report report.html \
+            tests/
+        env:
+          NETLICENSING_BASE_URL: ${{ env.NETLICENSING_BASE_URL }}
+          AUDITFLOW_BASE_URL: ${{ env.AUDITFLOW_BASE_URL }}
+          API_TOKEN: ${{ env.API_TOKEN }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p0-blocker-report
+          path: results/p0-blockers
+
+  nightly-regression:
+    name: Nightly Full Regression
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install Robot Framework and libraries
+        run: pip install -r requirements.txt
+
+      - name: Full regression across all services
+        run: |
+          robot \
+            --include regression \
+            --exclude flaky \
+            --outputdir results/nightly \
+            --output output.xml \
+            --log log.html \
+            --report report.html \
+            tests/
+        env:
+          NETLICENSING_BASE_URL: ${{ env.NETLICENSING_BASE_URL }}
+          AUDITFLOW_BASE_URL: ${{ env.AUDITFLOW_BASE_URL }}
+          PAYMENT_GATEWAY_BASE_URL: ${{ env.PAYMENT_GATEWAY_BASE_URL }}
+          IAM_GATEWAY_BASE_URL: ${{ env.IAM_GATEWAY_BASE_URL }}
+          INVOICING_BASE_URL: ${{ env.INVOICING_BASE_URL }}
+          API_TOKEN: ${{ env.API_TOKEN }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-regression-report
+          path: results/nightly
