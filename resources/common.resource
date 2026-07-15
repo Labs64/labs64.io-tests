@@ -17,7 +17,11 @@ ${API_TOKEN}                  %{API_TOKEN=${EMPTY}}
 *** Keywords ***
 Create Authenticated Session
     [Documentation]    Create an HTTP session with bearer-token authentication headers.
+    ...                Fails with a clear message if the token is empty so missing
+    ...                credentials are never silently swallowed as a 401 auth failure.
     [Arguments]    ${alias}    ${base_url}    ${token}=${API_TOKEN}
+    Should Not Be Empty    ${token}
+    ...    msg=API_TOKEN is empty. Set the API_TOKEN environment variable (or the CI secret) before running authenticated tests.
     ${auth_header}=    Set Variable    Bearer ${token}
     ${headers}=    Create Dictionary
     ...    Authorization=${auth_header}
