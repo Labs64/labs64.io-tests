@@ -1,62 +1,52 @@
 *** Settings ***
 Documentation    AuditFlow-specific keywords and variables.
+...              AuditFlow's public contract is a single endpoint, ``POST /audit/publish``
+...              (see auditflow-api/src/main/resources/openapi/openapi-audit-v1.yaml). AuditFlow
+...              is a router, not a system of record — it has no query API of its own, so these
+...              tests only ever assert against /audit/publish.
 Library          RequestsLibrary
 Library          Collections
 Library          String
 Resource         common.resource
 
 *** Variables ***
-${AUDITFLOW_SESSION_ALIAS}      auditflow
-${AUDITFLOW_INGESTION_SETTLE}   5    # seconds to wait for the async ingestion pipeline
+${AUDITFLOW_SESSION_ALIAS}    auditflow
+${AUDITFLOW_WRITE_SCOPE}      audit-event:write
 
 *** Keywords ***
 Create AuditFlow Session
-    [Documentation]    Open an authenticated HTTP session pointed at the AuditFlow base URL.
-    Create Authenticated Session    ${AUDITFLOW_SESSION_ALIAS}    ${AUDITFLOW_BASE_URL}
+    [Documentation]    Open a session authorized with the ``audit-event:write`` scope
+    ...                required by POST /audit/publish.
+    Create Session With Scope    ${AUDITFLOW_SESSION_ALIAS}    ${AUDITFLOW_BASE_URL}    ${AUDITFLOW_WRITE_SCOPE}
 
 Create Unauthenticated AuditFlow Session
     [Documentation]    Open an unauthenticated HTTP session pointed at the AuditFlow base URL.
     Create Unauthenticated Session    ${AUDITFLOW_SESSION_ALIAS}    ${AUDITFLOW_BASE_URL}
 
-Submit Audit Event Batch
-    [Documentation]    POST a list of audit-event objects to the batch ingestion endpoint.
-    [Arguments]    ${events}
+Publish Audit Event
+    [Documentation]    POST an audit-event object to /audit/publish on the given session alias.
+    [Arguments]    ${event}    ${alias}=${AUDITFLOW_SESSION_ALIAS}
     ${response}=    POST On Session
-    ...    ${AUDITFLOW_SESSION_ALIAS}
-    ...    /events/batch
-    ...    json=${events}
+    ...    ${alias}
+    ...    /audit/publish
+    ...    json=${event}
     ...    expected_status=any
     RETURN    ${response}
 
-Query Events By Correlation ID
-    [Documentation]    GET events filtered by the given correlation ID.
+Build Valid Audit Event
+    [Documentation]    Return a well-formed audit-event dict satisfying the AuditEvent schema
+    ...                (required: eventType, sourceSystem).
     [Arguments]    ${correlation_id}
-    ${params}=    Create Dictionary    correlationId=${correlation_id}
-    ${response}=    GET On Session
-    ...    ${AUDITFLOW_SESSION_ALIAS}
-    ...    /events
-    ...    params=${params}
-    ...    expected_status=any
-    RETURN    ${response}
+    ${extra}=    Create Dictionary    userId=test-suite    action_name=test.event    action_status=SUCCESS
+    ${event}=    Create Dictionary
+    ...    eventType=api.call
+    ...    sourceSystem=labs64.io-tests
+    ...    correlationId=${correlation_id}
+    ...    extra=${extra}
+    RETURN    ${event}
 
-Query Events Unauthenticated
-    [Documentation]    GET /events without an Authorization header — expects 401.
-    ${response}=    GET On Session
-    ...    ${AUDITFLOW_SESSION_ALIAS}
-    ...    /events
-    ...    expected_status=any
-    RETURN    ${response}
-
-Build Event Batch
-    [Documentation]    Return a list of ``size`` event dicts sharing ``correlation_id``.
-    [Arguments]    ${correlation_id}    ${size}
-    ${events}=    Create List
-    FOR    ${i}    IN RANGE    ${size}
-        ${event}=    Create Dictionary
-        ...    correlationId=${correlation_id}
-        ...    sequence=${i}
-        ...    action=test.event
-        ...    actor=test-suite
-        Append To List    ${events}    ${event}
-    END
-    RETURN    ${events}
+Build Invalid Audit Event Missing Required Field
+    [Documentation]    Return an audit-event dict missing the required ``eventType`` field,
+    ...                to assert the API rejects it with HTTP 400.
+    ${event}=    Create Dictionary    sourceSystem=labs64.io-tests
+    RETURN    ${event}

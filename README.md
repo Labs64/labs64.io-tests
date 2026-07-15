@@ -8,7 +8,9 @@ Integration & Regression Test Suite for the [Labs64.IO Ecosystem](https://labs64
 
 Black-box API-edge regression suite for the [Labs64.IO](https://labs64.io) platform, built with [Robot Framework](https://robotframework.org/) and [`robotframework-requests`](https://github.com/MarketSquare/robotframework-requests).
 
-Every test asserts through the **public API edge** only — no RabbitMQ, kubectl, or internal infrastructure access. This matches how an ISV or AI agent actually experiences the platform and keeps the suite's secrets surface minimal.
+Every test asserts through the **gateway edge** (Traefik + authproxy) only — never a backend port directly, no RabbitMQ/kubectl/internal infrastructure access. This matches how an ISV, AI agent, or browser actually experiences the platform, keeps the suite's secrets surface minimal, and is the only vantage point from which Cedar authorization is actually enforced (a backend hit directly would skip it).
+
+Covers `auditflow` and `payment-gateway` today. See `AGENTS.md` for how to extend this to another module.
 
 ## Repository Structure
 
@@ -16,25 +18,17 @@ Every test asserts through the **public API edge** only — no RabbitMQ, kubectl
 labs64.io-tests/
 ├── requirements.txt                # Python dependencies
 ├── resources/                      # Shared Robot Framework resource files
-│   ├── common.resource             # HTTP session helpers, shared variables
-│   ├── netlicensing.resource       # NetLicensing-specific keywords
-│   └── auditflow.resource          # AuditFlow-specific keywords
+│   ├── common.resource             # HTTP session helpers, mock-oidc token minting, shared vars
+│   ├── auditflow.resource          # AuditFlow-specific keywords (POST /audit/publish)
+│   └── payment_gateway.resource    # Payment Gateway-specific keywords
 ├── tests/
-│   ├── netlicensing/
-│   │   ├── smoke.robot
-│   │   ├── licensing_models.robot
-│   │   └── ppu_agent_extension.robot    # EXT-PPU-01..15
 │   ├── auditflow/
-│   │   ├── smoke.robot
-│   │   ├── ingestion_completeness_regression.robot   # P0 — dead-DLQ / silent loss
-│   │   └── jwt_auth_regression.robot                 # P0 — phantom-JWT auth gap
-│   ├── payment-gateway/smoke.robot
-│   ├── iam-gateway/smoke.robot
-│   ├── invoicing/smoke.robot
-│   └── cross_service/
-│       └── entitlement_to_invoice_e2e.robot
-├── manual/
-│   └── netlicensing-smoke.hurl     # Hurl one-off smoke checks (not run in CI)
+│   │   ├── smoke.robot             # happy path + 400 validation
+│   │   └── authz.robot             # auth/authz matrix — see P0 Defect Coverage below
+│   └── payment-gateway/
+│       ├── smoke.robot
+│       ├── payment_providers.robot # create/read/update/delete lifecycle (noop PSP)
+│       └── authz.robot             # auth/authz scope matrix
 └── .github/workflows/
     └── regression-suite.yml        # GitHub Actions CI workflow
 ```
@@ -51,7 +45,7 @@ labs64.io-tests/
 | `p0-blocker` | Guards a known-critical defect class | Always gating, never skipped |
 | `flaky` | Quarantined — non-blocking | Nightly, excluded from gating |
 | `auth` | Authentication / authorisation assertions | — |
-| `tenant-isolation` | Cross-tenant isolation scenarios | — |
+| `tenant-isolation` | Cross-tenant / cross-scope isolation scenarios | — |
 | `error-handling` | Error path / negative testing | — |
 
 ## Setup
@@ -62,14 +56,28 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+You need a running Labs64.IO stack reachable through its gateway edge — either the [local k3d cluster](../labs64.io-helm-charts/DEVELOPERS.md) (`just local-up` from `labs64.io-helm-charts/`) or an equivalent environment with `gateway.localhost` and `mock-oidc.localhost` resolvable. `mock-oidc` is a **dev-only** OIDC provider that mints scoped M2M tokens on demand — the auth/authz tests use it to mint tokens with exactly the scope they want to assert against, so no manually-provisioned credentials are needed for local runs.
+
 ## Running Tests
 
-**All smoke tests:**
+**All smoke tests (fast, every PR):**
 ```bash
 robot --include smoke tests/
 ```
 
-**P0 blocker tests only (dead-DLQ + phantom-JWT regressions):**
+**A single service:**
+```bash
+robot tests/auditflow/
+robot tests/payment-gateway/
+```
+
+**A single file or test case:**
+```bash
+robot tests/auditflow/authz.robot
+robot --test "Publish With Correct Scope Is Allowed" tests/auditflow/authz.robot
+```
+
+**P0 blocker tests only (never skipped):**
 ```bash
 robot --include p0-blocker tests/
 ```
@@ -79,28 +87,24 @@ robot --include p0-blocker tests/
 robot --include regression --exclude flaky tests/
 ```
 
-**Single service:**
+**Auth/authz matrix only, across all services:**
 ```bash
-robot tests/netlicensing/
+robot --include auth tests/
 ```
 
-**Target environment (override via environment variables):**
+Robot writes `output.xml`, `log.html`, and `report.html` to the current directory (or `--outputdir <dir>`) on every run — open `log.html` first when a test fails, it has the full request/response detail per keyword.
+
+### Targeting a different environment
+
+Base URLs and the mock-oidc endpoint are resolved from environment variables (see `resources/common.resource` for the full list and defaults):
+
 ```bash
-NETLICENSING_BASE_URL=https://staging.netlicensing.io/core/v2/rest \
-API_TOKEN=<your-token> \
-robot --include smoke tests/netlicensing/
+GATEWAY_BASE_URL=https://staging.labs64.io \
+MOCK_OIDC_BASE_URL=https://mock-oidc.staging.labs64.io \
+robot --include smoke tests/
 ```
 
-## Environment Variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `NETLICENSING_BASE_URL` | `https://go.netlicensing.io/core/v2/rest` | NetLicensing API base URL |
-| `AUDITFLOW_BASE_URL` | `http://localhost:8080` | AuditFlow service base URL |
-| `PAYMENT_GATEWAY_BASE_URL` | `http://localhost:8081` | Payment Gateway base URL |
-| `IAM_GATEWAY_BASE_URL` | `http://localhost:8082` | IAM Gateway base URL |
-| `INVOICING_BASE_URL` | `http://localhost:8083` | Invoicing service base URL |
-| `API_TOKEN` | *(empty)* | ****** for API authentication — set via CI secret (`secrets.API_TOKEN`), never hardcoded |
+If `mock-oidc` isn't reachable in your target environment, set `API_TOKEN` to a pre-provisioned token instead — tests that don't need a specific scope combination fall back to it; scope-matrix tests in `authz.robot` require `mock-oidc` since they need multiple distinct scope combinations per suite.
 
 ## CI
 
@@ -110,18 +114,12 @@ The GitHub Actions workflow (`.github/workflows/regression-suite.yml`) runs:
 - **Nightly:** full regression suite across all services, excluding `flaky`
 - **Manual trigger:** `workflow_dispatch`
 
-## Manual / Exploratory Checks
-
-The `manual/` directory contains [Hurl](https://hurl.dev/) files that mirror the NetLicensing "Try it now" curl examples from the developer documentation. These are **not** run in CI — they are for ad-hoc manual checks:
-
-```bash
-hurl --variable netlicensing_base_url=https://go.netlicensing.io/core/v2/rest \
-     manual/netlicensing-smoke.hurl
-```
-
 ## P0 Defect Coverage
 
 | Defect class | Test file | Tag |
 |---|---|---|
-| Dead-DLQ / silent audit-event loss | `tests/auditflow/ingestion_completeness_regression.robot` | `p0-blocker` |
-| Phantom JWT (auth gap between spec and implementation) | `tests/auditflow/jwt_auth_regression.robot` | `p0-blocker` |
+| Phantom JWT (auth gap between spec and implementation) | `tests/auditflow/authz.robot` | `p0-blocker` |
+
+## Adding tests for another module
+
+See the `gatekeeper` skill (workspace-level `.claude/skills/gatekeeper/`) — it reads a module's `x-labs64-auth` OpenAPI annotations and scaffolds/updates the auth/authz matrix from the contract itself, and flags tests that reference endpoints no longer present in the spec.

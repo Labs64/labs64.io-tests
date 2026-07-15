@@ -1,4 +1,4 @@
-name: api-edge-regression-suite
+name: Labs64.IO - Regression Tests
 
 on:
   pull_request:
@@ -7,13 +7,16 @@ on:
     - cron: '0 3 * * *'   # nightly full regression
 
 env:
-  # Secrets are injected via GitHub Actions secrets — never hardcoded.
-  # Override these in your repository / environment secrets.
-  NETLICENSING_BASE_URL: ${{ vars.NETLICENSING_BASE_URL || 'https://go.netlicensing.io/core/v2/rest' }}
-  AUDITFLOW_BASE_URL: ${{ vars.AUDITFLOW_BASE_URL || 'http://localhost:8080' }}
-  PAYMENT_GATEWAY_BASE_URL: ${{ vars.PAYMENT_GATEWAY_BASE_URL || 'http://localhost:8081' }}
-  IAM_GATEWAY_BASE_URL: ${{ vars.IAM_GATEWAY_BASE_URL || 'http://localhost:8082' }}
-  INVOICING_BASE_URL: ${{ vars.INVOICING_BASE_URL || 'http://localhost:8083' }}
+  # All tests run through the gateway edge, never straight to a backend port — Cedar
+  # authorization is enforced at the gateway. Override these via repository/environment
+  # variables to point at the stack under test (e.g. a self-hosted runner attached to the
+  # local k3d cluster). mock-oidc mints scoped M2M tokens on demand; see resources/common.resource.
+  GATEWAY_BASE_URL: ${{ vars.GATEWAY_BASE_URL || 'http://gateway.localhost' }}
+  AUDITFLOW_BASE_URL: ${{ vars.AUDITFLOW_BASE_URL || 'http://gateway.localhost/auditflow/api/v1' }}
+  PAYMENT_GATEWAY_BASE_URL: ${{ vars.PAYMENT_GATEWAY_BASE_URL || 'http://gateway.localhost/payment-gateway/api/v1' }}
+  MOCK_OIDC_BASE_URL: ${{ vars.MOCK_OIDC_BASE_URL || 'http://mock-oidc.localhost' }}
+  OIDC_ISSUER_ID: ${{ vars.OIDC_ISSUER_ID || 'labs64io' }}
+  # Optional static override for environments where mock-oidc isn't reachable.
   API_TOKEN: ${{ secrets.API_TOKEN }}
 
 jobs:
@@ -24,17 +27,14 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          - netlicensing
           - auditflow
           - payment-gateway
-          - iam-gateway
-          - invoicing
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13'
           cache: pip
 
       - name: Install Robot Framework and libraries
@@ -49,13 +49,6 @@ jobs:
             --log log.html \
             --report report.html \
             tests/${{ matrix.service }}/
-        env:
-          NETLICENSING_BASE_URL: ${{ env.NETLICENSING_BASE_URL }}
-          AUDITFLOW_BASE_URL: ${{ env.AUDITFLOW_BASE_URL }}
-          PAYMENT_GATEWAY_BASE_URL: ${{ env.PAYMENT_GATEWAY_BASE_URL }}
-          IAM_GATEWAY_BASE_URL: ${{ env.IAM_GATEWAY_BASE_URL }}
-          INVOICING_BASE_URL: ${{ env.INVOICING_BASE_URL }}
-          API_TOKEN: ${{ env.API_TOKEN }}
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -72,7 +65,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13'
           cache: pip
 
       - name: Install Robot Framework and libraries
@@ -87,10 +80,6 @@ jobs:
             --log log.html \
             --report report.html \
             tests/
-        env:
-          NETLICENSING_BASE_URL: ${{ env.NETLICENSING_BASE_URL }}
-          AUDITFLOW_BASE_URL: ${{ env.AUDITFLOW_BASE_URL }}
-          API_TOKEN: ${{ env.API_TOKEN }}
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -107,7 +96,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13'
           cache: pip
 
       - name: Install Robot Framework and libraries
@@ -123,13 +112,6 @@ jobs:
             --log log.html \
             --report report.html \
             tests/
-        env:
-          NETLICENSING_BASE_URL: ${{ env.NETLICENSING_BASE_URL }}
-          AUDITFLOW_BASE_URL: ${{ env.AUDITFLOW_BASE_URL }}
-          PAYMENT_GATEWAY_BASE_URL: ${{ env.PAYMENT_GATEWAY_BASE_URL }}
-          IAM_GATEWAY_BASE_URL: ${{ env.IAM_GATEWAY_BASE_URL }}
-          INVOICING_BASE_URL: ${{ env.INVOICING_BASE_URL }}
-          API_TOKEN: ${{ env.API_TOKEN }}
 
       - uses: actions/upload-artifact@v4
         if: always()

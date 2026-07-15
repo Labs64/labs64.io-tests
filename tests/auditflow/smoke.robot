@@ -1,32 +1,29 @@
 *** Settings ***
 Documentation    AuditFlow smoke checks — fast critical-path validation via the API edge.
-...              These tests run on every PR.
+...              These tests run on every PR. AuditFlow's public contract is a single
+...              endpoint, POST /audit/publish; there is no query API by design.
 Resource         ../../resources/auditflow.resource
 Suite Setup      Create AuditFlow Session
 Suite Teardown   Delete All Sessions
 
 *** Test Cases ***
-Health Endpoint Returns 200
-    [Documentation]    The AuditFlow health or readiness endpoint must return HTTP 200,
-    ...                confirming the service is reachable and up.
-    [Tags]    auditflow    smoke    critical
-    ${response}=    GET On Session    auditflow    /health    expected_status=any
-    Response Status Should Be    ${response}    200
-
-Events Endpoint Is Reachable With Valid Credentials
-    [Documentation]    GET /events with a valid bearer token must return HTTP 200 (or 206),
-    ...                confirming the query path is live.
-    [Tags]    auditflow    smoke    critical
-    ${response}=    GET On Session    auditflow    /events    expected_status=any
-    ${status}=    Convert To Integer    ${response.status_code}
-    Should Be True    ${status} == 200 or ${status} == 206
-    ...    msg=Expected 200 or 206 from /events with valid credentials but got HTTP ${status}
-
-Single Event Ingestion Returns 202
-    [Documentation]    POSTing a single well-formed audit event to /events/batch must be
-    ...                accepted immediately with HTTP 202.
+Publishing A Valid Event Returns 200 With Event Id Header
+    [Documentation]    POSTing a well-formed audit event to /audit/publish must be accepted
+    ...                synchronously with HTTP 200 and echo the assigned event id in the
+    ...                X-Audit-Event-Id response header.
     [Tags]    auditflow    smoke    critical
     ${correlation_id}=    Generate Correlation ID
-    ${events}=    Build Event Batch    ${correlation_id}    1
-    ${response}=    Submit Audit Event Batch    ${events}
-    Response Status Should Be    ${response}    202
+    ${event}=    Build Valid Audit Event    ${correlation_id}
+    ${response}=    Publish Audit Event    ${event}
+    Response Status Should Be    ${response}    200
+    Dictionary Should Contain Key    ${response.headers}    X-Audit-Event-Id
+
+Publishing An Event Missing A Required Field Returns 400
+    [Documentation]    An audit event missing the required ``eventType`` field must be
+    ...                rejected with HTTP 400 and a VALIDATION_ERROR error code.
+    [Tags]    auditflow    smoke    error-handling
+    ${event}=    Build Invalid Audit Event Missing Required Field
+    ${response}=    Publish Audit Event    ${event}
+    Response Status Should Be    ${response}    400
+    ${body}=    Set Variable    ${response.json()}
+    Should Be Equal As Strings    ${body}[code]    VALIDATION_ERROR

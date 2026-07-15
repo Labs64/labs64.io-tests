@@ -1,31 +1,31 @@
 *** Settings ***
-Documentation    Payment Gateway smoke checks — critical-path validation via the API edge.
-...              Third-party PSP (Stripe/PayPal/Adyen) endpoints are not called in CI;
-...              a Karate-style mock or test-mode credentials are used instead.
-Library          RequestsLibrary
-Library          Collections
-Resource         ../../resources/common.resource
-Suite Setup      Create Authenticated Session    payment-gateway    ${PAYMENT_GATEWAY_BASE_URL}
+Documentation    Payment Gateway smoke checks — fast critical-path validation via the API edge.
+...              These tests run on every PR. Only the ``noop`` PSP is exercised — real PSP
+...              (Stripe/PayPal) sandboxes are never called from this suite.
+Resource         ../../resources/payment_gateway.resource
 Suite Teardown   Delete All Sessions
 
 *** Test Cases ***
-Health Endpoint Returns 200
-    [Documentation]    The Payment Gateway health endpoint must return HTTP 200.
+Payment Definitions Are Reachable Without Authentication
+    [Documentation]    GET /payment-definitions is a public endpoint and must return 200
+    ...                without any credentials.
     [Tags]    payment-gateway    smoke    critical
-    ${response}=    GET On Session    payment-gateway    /health    expected_status=any
+    Create Unauthenticated Payment Gateway Session    pg-public
+    ${response}=    List Payment Definitions    pg-public
     Response Status Should Be    ${response}    200
+    Response Should Contain Key    ${response}    items
 
-Payment Methods Endpoint Is Reachable
-    [Documentation]    GET /payment-methods must return 200 with the list of configured PSP adapters.
+Payment Providers Are Reachable With A Read-Scoped Token
+    [Documentation]    GET /payment-providers with a payment-provider:read token must return 200.
     [Tags]    payment-gateway    smoke    critical
-    ${response}=    GET On Session    payment-gateway    /payment-methods    expected_status=any
+    Create Payment Gateway Session With Scope    payment-provider:read    pg-read
+    ${response}=    List Payment Providers    pg-read
     Response Status Should Be    ${response}    200
+    Response Should Contain Key    ${response}    items
 
-Unauthenticated Request Is Rejected With 401
-    [Documentation]    Any authenticated endpoint must reject requests without credentials.
+Payment Providers Endpoint Rejects Unauthenticated Requests
+    [Documentation]    GET /payment-providers without credentials must return 401.
     [Tags]    payment-gateway    smoke    auth    critical
-    ${headers}=    Create Dictionary    Accept=application/json
-    Create Session    pg-no-auth    ${PAYMENT_GATEWAY_BASE_URL}    headers=${headers}    verify=True
-    ${response}=    GET On Session    pg-no-auth    /payment-methods    expected_status=any
+    Create Unauthenticated Payment Gateway Session    pg-no-auth
+    ${response}=    List Payment Providers    pg-no-auth
     Response Status Should Be    ${response}    401
-    [Teardown]    Delete All Sessions
