@@ -4,6 +4,13 @@ Documentation    AuditFlow authentication & authorization regression, asserted e
 ...              validation this suite replaces: a token with the wrong scope must be denied
 ...              (403), the correct scope must be allowed (200), and missing/malformed
 ...              credentials must be rejected (401) before any Cedar decision is made.
+...
+...              The ``local-k8s-only`` tagged cases below additionally corroborate the HTTP
+...              assertion against kubectl pod logs (authproxy Cedar decision + AuditFlow
+...              backend delivery) — a deliberate, narrow exception to this suite's normal
+...              "no kubectl" rule. They call `Skip Unless Local Kubernetes` first and skip
+...              cleanly outside the local k3d dev cluster, so CI never fails on them. See
+...              AGENTS.md "Local-only pod-log corroboration" for the full rationale/scope.
 Resource         ../../resources/auditflow.resource
 Suite Teardown   Delete All Sessions
 
@@ -70,6 +77,19 @@ Publish With Multiple Scopes Including The Required One Is Allowed
     Response Status Should Be    ${response}    200
     [Teardown]    Delete All Sessions
 
+Publish With Valid Token Lacking Any Scope Is Denied With 403
+    [Documentation]    A validly-signed token that carries NO scopes at all (mock-oidc
+    ...                ``no-access`` persona) must be denied by the Cedar policy with 403 —
+    ...                distinct from "wrong scope": here the token authenticates fine but the
+    ...                scope set is empty, so ``context.scopes.contains(...)`` has nothing to
+    ...                match. Migrated from labs64.io-helm-charts justfile `e2e-auth-test`.
+    [Tags]    auditflow    regression    critical    auth
+    Create Session With Scope    auditflow-no-scope    ${AUDITFLOW_BASE_URL}    no-access
+    ${event}=    Build Valid Audit Event    no-scope-check
+    ${response}=    Publish Audit Event    ${event}    alias=auditflow-no-scope
+    Response Status Should Be    ${response}    403
+    [Teardown]    Delete All Sessions
+
 Unauthenticated Request Does Not Return A 500
     [Documentation]    An unauthenticated request must not produce an unexpected server error.
     ...                HTTP 500 on an auth-gated path may indicate a misconfigured auth filter
@@ -81,4 +101,83 @@ Unauthenticated Request Does Not Return A 500
     ${status}=    Convert To Integer    ${response.status_code}
     Should Be True    ${status} != 500
     ...    msg=Unauthenticated request caused HTTP 500 — possible misconfigured auth filter. Expected 401.
+    [Teardown]    Delete All Sessions
+
+Authproxy Logs Confirm Unauthenticated Publish Was Rejected At The Edge
+    [Documentation]    Local-k8s-only companion to "Publish Without Authorization Header
+    ...                Returns 401": corroborates the HTTP 401 against the authproxy's own
+    ...                no-token rejection log line, not just the response code.
+    [Tags]    auditflow    regression    auth    local-k8s-only
+    Skip Unless Local Kubernetes
+    Create Unauthenticated AuditFlow Session
+    ${correlation_id}=    Generate Correlation ID
+    ${event}=    Build Valid Audit Event    ${correlation_id}
+    ${response}=    Publish Audit Event    ${event}
+    Response Status Should Be    ${response}    401
+    Authproxy Logs Should Show No-Token Rejection For Publish
+    [Teardown]    Delete All Sessions
+
+Authproxy And Backend Logs Confirm Wrong-Scope Publish Was Denied At The Edge
+    [Documentation]    Local-k8s-only companion to "Publish With Wrong Scope Is Denied With
+    ...                403": corroborates the HTTP 403 against the authproxy's Cedar
+    ...                enforced-deny decision log, and confirms the denied request's
+    ...                correlationId never reached the AuditFlow backend at all.
+    [Tags]    auditflow    regression    auth    tenant-isolation    local-k8s-only
+    Skip Unless Local Kubernetes
+    Create Session With Scope    auditflow-wrong-scope-k8s    ${AUDITFLOW_BASE_URL}    audit-event:read
+    ${correlation_id}=    Generate Correlation ID
+    ${event}=    Build Valid Audit Event    ${correlation_id}
+    ${response}=    Publish Audit Event    ${event}    alias=auditflow-wrong-scope-k8s
+    Response Status Should Be    ${response}    403
+    Authproxy Logs Should Show Cedar Decision For Publish    enforced-deny
+    AuditFlow Backend Logs Should Not Contain Correlation Id    ${correlation_id}
+    [Teardown]    Delete All Sessions
+
+Authproxy And Backend Logs Confirm Correct-Scope Publish Was Allowed And Delivered
+    [Documentation]    Local-k8s-only companion to "Publish With Correct Scope Is Allowed":
+    ...                corroborates the HTTP 200 against the authproxy's Cedar enforced-allow
+    ...                decision log, and confirms the event's correlationId actually reached
+    ...                and was processed by the AuditFlow backend — not just allowed at the edge.
+    [Tags]    auditflow    regression    auth    local-k8s-only
+    Skip Unless Local Kubernetes
+    Create Session With Scope    auditflow-correct-scope-k8s    ${AUDITFLOW_BASE_URL}    audit-event:write
+    ${correlation_id}=    Generate Correlation ID
+    ${event}=    Build Valid Audit Event    ${correlation_id}
+    ${response}=    Publish Audit Event    ${event}    alias=auditflow-correct-scope-k8s
+    Response Status Should Be    ${response}    200
+    Authproxy Logs Should Show Cedar Decision For Publish    enforced-allow
+    AuditFlow Backend Logs Should Contain Correlation Id    ${correlation_id}
+    [Teardown]    Delete All Sessions
+
+Authproxy And Backend Logs Confirm Multiple-Scopes Publish Was Allowed And Delivered
+    [Documentation]    Local-k8s-only companion to "Publish With Multiple Scopes Including The
+    ...                Required One Is Allowed": corroborates the HTTP 200 against the
+    ...                authproxy's Cedar enforced-allow decision log (showing the full scope
+    ...                set, not just the required one), and confirms delivery to the backend.
+    [Tags]    auditflow    regression    auth    local-k8s-only
+    Skip Unless Local Kubernetes
+    Create Session With Scope    auditflow-multi-scope-k8s    ${AUDITFLOW_BASE_URL}
+    ...    audit-event:read audit-event:write customer:read
+    ${correlation_id}=    Generate Correlation ID
+    ${event}=    Build Valid Audit Event    ${correlation_id}
+    ${response}=    Publish Audit Event    ${event}    alias=auditflow-multi-scope-k8s
+    Response Status Should Be    ${response}    200
+    Authproxy Logs Should Show Cedar Decision For Publish    enforced-allow
+    AuditFlow Backend Logs Should Contain Correlation Id    ${correlation_id}
+    [Teardown]    Delete All Sessions
+
+Authproxy And Backend Logs Confirm No-Scope Publish Was Denied At The Edge
+    [Documentation]    Local-k8s-only companion to "Publish With Valid Token Lacking Any Scope
+    ...                Is Denied With 403": corroborates the HTTP 403 against the authproxy's
+    ...                Cedar enforced-deny decision log, and confirms the denied request's
+    ...                correlationId never reached the AuditFlow backend at all.
+    [Tags]    auditflow    regression    auth    local-k8s-only
+    Skip Unless Local Kubernetes
+    Create Session With Scope    auditflow-no-scope-k8s    ${AUDITFLOW_BASE_URL}    no-access
+    ${correlation_id}=    Generate Correlation ID
+    ${event}=    Build Valid Audit Event    ${correlation_id}
+    ${response}=    Publish Audit Event    ${event}    alias=auditflow-no-scope-k8s
+    Response Status Should Be    ${response}    403
+    Authproxy Logs Should Show Cedar Decision For Publish    enforced-deny
+    AuditFlow Backend Logs Should Not Contain Correlation Id    ${correlation_id}
     [Teardown]    Delete All Sessions

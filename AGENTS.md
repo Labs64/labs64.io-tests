@@ -46,6 +46,25 @@ See `README.md` for the full table. The tags that matter most when writing a new
 4. Add the module to the CI matrix in `.github/workflows/regression-suite.yml`.
 5. Add the module to `README.md`'s repository structure and P0 coverage table if applicable.
 
+## Local-only pod-log corroboration (explicit exception)
+
+`tests/auditflow/authz.robot` has a handful of test cases tagged `local-k8s-only` that
+additionally corroborate an HTTP-status assertion against `kubectl logs` (the authproxy's Cedar
+decision log, and the AuditFlow backend's delivery log via `correlationId`). This is a
+deliberate, narrow exception to "Gateway edge only" above, added because the auth/authz path has
+two effects a pure HTTP client can't see: whether the *edge* actually made the decision it
+appears to have made, and whether an allowed request was actually *delivered* past the gateway.
+
+Rules for this exception, enforced in `resources/common.resource` / `resources/auditflow.resource`:
+
+- Every such test calls `Skip Unless Local Kubernetes` first, which skips (never fails) unless
+  the active kubectl context exactly matches the pinned local k3d dev cluster
+  (`k3d-labs64io`) — so CI (no kubectl context) always skips them silently.
+- They are corroborating, never primary — the paired HTTP-status test case is still the actual
+  contract check; the log assertion adds confidence, it doesn't replace the assertion.
+- Don't extend this pattern to ordinary functional tests. It exists only for the auth/authz path,
+  where the enforcement point and delivery effect are otherwise invisible to the suite.
+
 ## What NOT to do
 
 - Don't hardcode credentials — use `Get OIDC Token`/`Create Session With Scope`, or the `API_TOKEN` env var as a fallback.

@@ -4,6 +4,7 @@ Library          RequestsLibrary
 Library          Collections
 Library          String
 Library          OperatingSystem
+Library          Process
 
 *** Variables ***
 # All module URLs go through the Traefik/authproxy gateway edge — never straight to a
@@ -23,6 +24,12 @@ ${OIDC_CLIENT_SECRET}         %{OIDC_CLIENT_SECRET=local-test}
 # pre-provisioned CI service token). Prefer `Get OIDC Token` / `Create Session With Scope`
 # wherever a specific scope combination needs to be asserted.
 ${API_TOKEN}                  %{API_TOKEN=${EMPTY}}
+
+# Pinned local dev cluster context (see labs64.io-helm-charts/DEVELOPERS.md, `k3d cluster
+# create --config k3d/labs64io.yaml`). `Local Kubernetes Available` only returns true for an
+# exact match — never for an arbitrary/shared/prod kubectl context — see AGENTS.md
+# "Local-only pod-log corroboration" for why kubectl appears here at all.
+${LOCAL_K8S_CONTEXT}           %{LOCAL_K8S_CONTEXT=k3d-labs64io}
 
 *** Keywords ***
 Get OIDC Token
@@ -86,3 +93,23 @@ Generate Correlation ID
     [Documentation]    Return a unique correlation identifier prefixed with ``test-``.
     ${uuid}=    Evaluate    __import__('uuid').uuid4().hex
     RETURN    test-${uuid}
+
+Local Kubernetes Available
+    [Documentation]    Return ``${True}`` only when ``kubectl`` is on PATH and its current
+    ...                context exactly matches ``${LOCAL_K8S_CONTEXT}`` (the pinned local k3d
+    ...                dev cluster). Never returns true for a shared/staging/prod context, and
+    ...                never raises — a missing kubectl binary (e.g. on a GitHub Actions
+    ...                runner) is treated as "not available", not an error.
+    ${result}=    Run Process    kubectl config current-context    shell=True
+    IF    ${result.rc} != 0    RETURN    ${False}
+    ${context}=    Strip String    ${result.stdout}
+    RETURN    ${context == '${LOCAL_K8S_CONTEXT}'}
+
+Skip Unless Local Kubernetes
+    [Documentation]    Skip (not fail) the current test unless the local k3d dev cluster is the
+    ...                active kubectl context. Keeps kubectl-based corroboration opt-in and
+    ...                CI-silent — see AGENTS.md "Local-only pod-log corroboration".
+    ${available}=    Local Kubernetes Available
+    IF    not ${available}
+        Skip    Local k3d cluster (context '${LOCAL_K8S_CONTEXT}') is not active — skipping kubectl-based log corroboration.
+    END
