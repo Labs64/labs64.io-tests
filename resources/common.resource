@@ -13,6 +13,7 @@ Library          Process
 ${GATEWAY_BASE_URL}           %{GATEWAY_BASE_URL=http://gateway.localhost}
 ${AUDITFLOW_BASE_URL}         %{AUDITFLOW_BASE_URL=${GATEWAY_BASE_URL}/auditflow/api/v1}
 ${PAYMENT_GATEWAY_BASE_URL}   %{PAYMENT_GATEWAY_BASE_URL=${GATEWAY_BASE_URL}/payment-gateway/api/v1}
+${CHECKOUT_BASE_URL}          %{CHECKOUT_BASE_URL=${GATEWAY_BASE_URL}/checkout/api/v1}
 
 # mock-oidc (DEV ONLY) mints M2M tokens on demand — see `Get OIDC Token` below.
 ${MOCK_OIDC_BASE_URL}         %{MOCK_OIDC_BASE_URL=http://mock-oidc.localhost}

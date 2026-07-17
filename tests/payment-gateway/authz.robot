@@ -120,3 +120,24 @@ Verify Cedar deny in authproxy logs for no scopes (local-k8s)
     ${response}=    List Payment Providers    pg-authz-no-scopes-k8s
     Response Status Should Be    ${response}    403
     Authproxy Logs Should Show Cedar Decision For Payment Providers    enforced-deny
+
+Reject missing read scope for payments (403)
+    [Documentation]    GET /payments requires payment:read; token missing it is denied.
+    [Tags]    payment-gateway    regression    critical    auth    tenant-isolation
+    Create Payment Gateway Session With Scope    payment:write    pg-authz-payments-wrong-scope
+    ${response}=    List Payments    pg-authz-payments-wrong-scope
+    Response Status Should Be    ${response}    403
+
+Allow read-scoped access to payments (200)
+    [Documentation]    GET /payments with payment:read scope is allowed.
+    [Tags]    payment-gateway    regression    critical    auth
+    Create Payment Gateway Session With Scope    payment:read    pg-authz-payments-correct-scope
+    ${response}=    List Payments    pg-authz-payments-correct-scope
+    Response Status Should Be    ${response}    200
+
+Reject read-only scope for creating payment (403)
+    [Documentation]    POST /payments requires payment:write; read-only token is denied.
+    [Tags]    payment-gateway    regression    critical    auth    tenant-isolation
+    Create Payment Gateway Session With Scope    payment:read    pg-authz-payments-create-denied
+    ${response}=    Create Payment    pg-authz-payments-create-denied
+    Response Status Should Be    ${response}    403

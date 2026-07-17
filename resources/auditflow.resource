@@ -122,3 +122,12 @@ AuditFlow Backend Logs Should Not Contain Correlation Id
     ${logs}=    Fetch Recent Pod Logs    ${LABS64IO_K8S_NAMESPACE}    ${AUDITFLOW_K8S_DEPLOYMENT}    ${since}
     Should Not Contain    ${logs}    "correlationId": "${correlation_id}"
     ...    msg=Denied request's correlationId '${correlation_id}' unexpectedly reached the AuditFlow backend.
+
+Build Oversized Audit Event
+    [Documentation]    Return an audit-event dict with a payload exceeding 2MB to test size limits.
+    [Arguments]    ${correlation_id}
+    ${event}=    Build Valid Audit Event    ${correlation_id}
+    # Create a 15MB string (15,000,000 characters)
+    ${large_string}=    Evaluate    'x' * 15000000
+    Set To Dictionary    ${event}    oversized_field=${large_string}
+    RETURN    ${event}

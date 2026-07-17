@@ -92,3 +92,17 @@ Authproxy Logs Should Show Cedar Decision For Payment Providers
     ...                recorded the deny/allow, not just that the HTTP client received it.
     [Arguments]    ${outcome}    ${since}=90s
     Authproxy Logs Should Show Cedar Decision    payment-gateway    listPaymentProviders    ${outcome}    ${since}
+
+List Payments
+    [Documentation]    GET /payments — requires payment:read scope.
+    [Arguments]    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    ${response}=    GET On Session    ${alias}    /payments    expected_status=any
+    RETURN    ${response}
+
+Create Payment
+    [Documentation]    POST /payments — requires payment:write scope.
+    [Arguments]    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    # Minimal stub body; authz checks occur before body validation in Cedar.
+    ${body}=    Create Dictionary    amount=100    currency=USD
+    ${response}=    POST On Session    ${alias}    /payments    json=${body}    expected_status=any
+    RETURN    ${response}
