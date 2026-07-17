@@ -31,7 +31,4 @@ Reject oversized payload (413)
     ${correlation_id}=    Generate Correlation ID
     ${event}=    Build Oversized Audit Event    ${correlation_id}
     ${response}=    Publish Audit Event    ${event}
-    # TODO: Standard proxy response for payload too large is 413.
-    # Currently, Traefik/Spring Boot lacks a request limit and accepts 15MB payloads (200).
-    # Asserting 200 for now to keep the suite green until infrastructure is patched.
-    Response Status Should Be    ${response}    200
+    Response Status Should Be    ${response}    413
