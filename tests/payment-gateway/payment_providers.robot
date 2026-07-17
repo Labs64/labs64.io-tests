@@ -6,9 +6,8 @@ Suite Setup      Create Payment Gateway Session With Scope    payment-provider:w
 Suite Teardown   Delete All Sessions
 
 *** Test Cases ***
-Payment Provider Lifecycle: Create, Read, Update, Delete
-    [Documentation]    A tenant payment provider created against the noop PSP must be
-    ...                retrievable, updatable, and deletable through its full lifecycle.
+Complete payment provider lifecycle
+    [Documentation]    Tenant payment provider can be created, retrieved, updated, and deleted.
     [Tags]    payment-gateway    regression    critical
     ${create_response}=    Create Payment Provider
     Response Status Should Be    ${create_response}    200

@@ -6,25 +6,24 @@ Resource         ../../resources/payment_gateway.resource
 Suite Teardown   Delete All Sessions
 
 *** Test Cases ***
-Payment Definitions Are Reachable Without Authentication
-    [Documentation]    GET /payment-definitions is a public endpoint and must return 200
-    ...                without any credentials.
+Allow public access to payment definitions (200)
+    [Documentation]    GET /payment-definitions without credentials returns 200.
     [Tags]    payment-gateway    smoke    critical
     Create Unauthenticated Payment Gateway Session    pg-public
     ${response}=    List Payment Definitions    pg-public
     Response Status Should Be    ${response}    200
     Response Should Contain Key    ${response}    items
 
-Payment Providers Are Reachable With A Read-Scoped Token
-    [Documentation]    GET /payment-providers with a payment-provider:read token must return 200.
+Allow read-scoped access to payment providers (200)
+    [Documentation]    GET /payment-providers with payment-provider:read token returns 200.
     [Tags]    payment-gateway    smoke    critical
     Create Payment Gateway Session With Scope    payment-provider:read    pg-read
     ${response}=    List Payment Providers    pg-read
     Response Status Should Be    ${response}    200
     Response Should Contain Key    ${response}    items
 
-Payment Providers Endpoint Rejects Unauthenticated Requests
-    [Documentation]    GET /payment-providers without credentials must return 401.
+Reject missing authorization for payment providers (401)
+    [Documentation]    GET /payment-providers without auth header returns 401.
     [Tags]    payment-gateway    smoke    auth    critical
     Create Unauthenticated Payment Gateway Session    pg-no-auth
     ${response}=    List Payment Providers    pg-no-auth

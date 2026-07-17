@@ -17,40 +17,29 @@ Resource         ../../resources/payment_gateway.resource
 Test Teardown    Delete All Sessions
 
 *** Test Cases ***
-Payment Definitions Is Public And Ignores Any Credential State
-    [Documentation]    GET /payment-definitions must succeed identically whether the caller is
-    ...                unauthenticated or holds an unrelated scope — it is a public route.
+Allow public access to payment definitions (200)
+    [Documentation]    GET /payment-definitions succeeds without authentication.
     [Tags]    payment-gateway    regression    auth
     Create Unauthenticated Payment Gateway Session    pg-authz-public
     ${response}=    List Payment Definitions    pg-authz-public
     Response Status Should Be    ${response}    200
 
-Payment Definitions Stays Public For A Token Holding An Unrelated Scope
-    [Documentation]    GET /payment-definitions must return 200 even when the caller presents a
-    ...                validly-signed token for a completely unrelated scope — a public route
-    ...                must never accidentally start gating on whatever credential happens to be
-    ...                attached, only unauthenticated access proves that in isolation.
+Allow public access despite unrelated scope (200)
+    [Documentation]    GET /payment-definitions returns 200 even with an unrelated scope token.
     [Tags]    payment-gateway    regression    auth
     Create Payment Gateway Session With Scope    payment-provider:write    pg-authz-public-with-token
     ${response}=    List Payment Definitions    pg-authz-public-with-token
     Response Status Should Be    ${response}    200
 
-Payment Providers Endpoint Rejects Requests With No Authorization Header
-    [Documentation]    GET /payment-providers without an Authorization header at all must return
-    ...                401. Distinct from the malformed-bearer case below (which proves a
-    ...                present-but-invalid credential is also rejected); this is the plain
-    ...                missing-credential case and belongs in the canonical matrix here, not only
-    ...                in smoke.robot's fast reachability check.
+Reject missing authorization for payment providers (401)
+    [Documentation]    GET /payment-providers without auth header returns 401.
     [Tags]    payment-gateway    regression    critical    auth
     Create Unauthenticated Payment Gateway Session    pg-authz-no-auth
     ${response}=    List Payment Providers    pg-authz-no-auth
     Response Status Should Be    ${response}    401
 
-Payment Providers Denies A Malformed Bearer Credential With 401
-    [Documentation]    A syntactically-invalid bearer credential on a protected route must be
-    ...                rejected with 401 — not 403, which would imply the token was accepted
-    ...                before the Cedar authorization check ran. Mirrors the auditflow matrix so
-    ...                the two modules assert the same authentication-vs-authorization boundary.
+Reject malformed bearer token (401)
+    [Documentation]    Invalid bearer credential returns 401.
     [Tags]    payment-gateway    regression    critical    auth
     # Deliberately nonsensical test fixture credential — not a real credential or signing key.
     ${headers}=    Create Dictionary
@@ -61,56 +50,43 @@ Payment Providers Denies A Malformed Bearer Credential With 401
     ${response}=    List Payment Providers    pg-bad-auth
     Response Status Should Be    ${response}    401
 
-Payment Providers Denies A Token Missing The Read Scope
-    [Documentation]    A valid, correctly-signed token that does not carry payment-provider:read
-    ...                (here: only payment-provider:write) must be denied with 403 — holding a
-    ...                different scope for the same resource does not imply read access.
+Reject wrong scope for payment providers (403)
+    [Documentation]    Token missing payment-provider:read scope is denied with 403 by Cedar.
     [Tags]    payment-gateway    regression    critical    auth    tenant-isolation
     Create Payment Gateway Session With Scope    payment-provider:write    pg-authz-wrong-scope
     ${response}=    List Payment Providers    pg-authz-wrong-scope
     Response Status Should Be    ${response}    403
 
-Payment Providers Allows A Token With The Read Scope
-    [Documentation]    A token carrying exactly payment-provider:read must be allowed through
-    ...                the Cedar policy for GET /payment-providers.
+Allow read-scoped access to payment providers (200)
+    [Documentation]    Token with payment-provider:read scope is allowed.
     [Tags]    payment-gateway    regression    critical    auth
     Create Payment Gateway Session With Scope    payment-provider:read    pg-authz-correct-scope
     ${response}=    List Payment Providers    pg-authz-correct-scope
     Response Status Should Be    ${response}    200
 
-Creating A Payment Provider Denies A Read-Only Scope
-    [Documentation]    POST /payment-providers requires payment-provider:write; a token
-    ...                carrying only payment-provider:read must be denied with 403.
+Reject create provider with read-only scope (403)
+    [Documentation]    POST /payment-providers requires write scope; read-only token is denied.
     [Tags]    payment-gateway    regression    critical    auth    tenant-isolation
     Create Payment Gateway Session With Scope    payment-provider:read    pg-authz-create-denied
     ${response}=    Create Payment Provider    pg-authz-create-denied
     Response Status Should Be    ${response}    403
 
-Getting A Payment Provider By Id Denies A Read-Only Scope
-    [Documentation]    Same-resource read/write asymmetry: GET /payment-providers (list) needs
-    ...                only payment-provider:read, but GET /payment-providers/{id} needs
-    ...                payment-provider:write because the detail view exposes PSP configuration
-    ...                (secrets). A read-scoped token that can list providers must therefore be
-    ...                denied 403 on the detail endpoint — regressing this into a read grant
-    ...                would leak PSP config. The 403 is decided at the edge before the id is
-    ...                resolved, so a sentinel non-existent id still yields 403 (not 404).
+Reject get provider details with read-only scope (403)
+    [Documentation]    GET /payment-providers/{id} requires write scope to prevent config leak.
     [Tags]    payment-gateway    regression    critical    auth    tenant-isolation
     Create Payment Gateway Session With Scope    payment-provider:read    pg-authz-detail-denied
     ${response}=    Get Payment Provider    00000000-0000-0000-0000-000000000000    pg-authz-detail-denied
     Response Status Should Be    ${response}    403
 
-Payment Providers Endpoint Rejects A Token With No Scopes
-    [Documentation]    A token authenticated via mock-oidc's no-access persona (valid signature,
-    ...                no scopes) must be denied with 403, not silently granted default access.
+Reject token with no scopes (403)
+    [Documentation]    Token with empty scope set is denied with 403 by Cedar.
     [Tags]    payment-gateway    regression    critical    auth
     Create Payment Gateway Session With Scope    no-access    pg-authz-no-scopes
     ${response}=    List Payment Providers    pg-authz-no-scopes
     Response Status Should Be    ${response}    403
 
-Authproxy Logs Confirm Unauthenticated Payment Providers Request Was Rejected At The Edge
-    [Documentation]    Local-k8s-only companion to "Payment Providers Endpoint Rejects Requests
-    ...                With No Authorization Header": corroborates the HTTP 401 against the
-    ...                authproxy's own no-token rejection log line, not just the response code.
+Verify authproxy logs show 401 (local-k8s)
+    [Documentation]    Authproxy logs must record no-token rejection.
     [Tags]    payment-gateway    regression    auth    local-k8s-only
     Skip Unless Local Kubernetes
     Create Unauthenticated Payment Gateway Session    pg-authz-no-auth-k8s
@@ -118,10 +94,8 @@ Authproxy Logs Confirm Unauthenticated Payment Providers Request Was Rejected At
     Response Status Should Be    ${response}    401
     Authproxy Logs Should Show No-Token Rejection For Payment Providers
 
-Authproxy Logs Confirm Wrong-Scope Payment Providers Request Was Denied At The Edge
-    [Documentation]    Local-k8s-only companion to "Payment Providers Denies A Token Missing The
-    ...                Read Scope": corroborates the HTTP 403 against the authproxy's Cedar
-    ...                enforced-deny decision log for listPaymentProviders.
+Verify Cedar deny in authproxy logs for wrong scope (local-k8s)
+    [Documentation]    Authproxy logs show Cedar deny for missing read scope.
     [Tags]    payment-gateway    regression    auth    tenant-isolation    local-k8s-only
     Skip Unless Local Kubernetes
     Create Payment Gateway Session With Scope    payment-provider:write    pg-authz-wrong-scope-k8s
@@ -129,10 +103,8 @@ Authproxy Logs Confirm Wrong-Scope Payment Providers Request Was Denied At The E
     Response Status Should Be    ${response}    403
     Authproxy Logs Should Show Cedar Decision For Payment Providers    enforced-deny
 
-Authproxy Logs Confirm Correct-Scope Payment Providers Request Was Allowed At The Edge
-    [Documentation]    Local-k8s-only companion to "Payment Providers Allows A Token With The
-    ...                Read Scope": corroborates the HTTP 200 against the authproxy's Cedar
-    ...                enforced-allow decision log for listPaymentProviders.
+Verify Cedar allow in authproxy logs for read scope (local-k8s)
+    [Documentation]    Authproxy logs show Cedar allow for valid read scope.
     [Tags]    payment-gateway    regression    auth    local-k8s-only
     Skip Unless Local Kubernetes
     Create Payment Gateway Session With Scope    payment-provider:read    pg-authz-correct-scope-k8s
@@ -140,10 +112,8 @@ Authproxy Logs Confirm Correct-Scope Payment Providers Request Was Allowed At Th
     Response Status Should Be    ${response}    200
     Authproxy Logs Should Show Cedar Decision For Payment Providers    enforced-allow
 
-Authproxy Logs Confirm No-Scope Payment Providers Request Was Denied At The Edge
-    [Documentation]    Local-k8s-only companion to "Payment Providers Endpoint Rejects A Token
-    ...                With No Scopes": corroborates the HTTP 403 against the authproxy's Cedar
-    ...                enforced-deny decision log for listPaymentProviders.
+Verify Cedar deny in authproxy logs for no scopes (local-k8s)
+    [Documentation]    Authproxy logs show Cedar deny for empty scope set.
     [Tags]    payment-gateway    regression    auth    local-k8s-only
     Skip Unless Local Kubernetes
     Create Payment Gateway Session With Scope    no-access    pg-authz-no-scopes-k8s

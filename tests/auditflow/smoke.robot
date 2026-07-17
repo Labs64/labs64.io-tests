@@ -7,10 +7,8 @@ Suite Setup      Create AuditFlow Session
 Suite Teardown   Delete All Sessions
 
 *** Test Cases ***
-Publishing A Valid Event Returns 200 With Event Id Header
-    [Documentation]    POSTing a well-formed audit event to /audit/publish must be accepted
-    ...                synchronously with HTTP 200 and echo the assigned event id in the
-    ...                X-Audit-Event-Id response header.
+Publish valid event (200)
+    [Documentation]    Valid POST to /audit/publish returns 200 and assigns X-Audit-Event-Id.
     [Tags]    auditflow    smoke    critical
     ${correlation_id}=    Generate Correlation ID
     ${event}=    Build Valid Audit Event    ${correlation_id}
@@ -18,9 +16,8 @@ Publishing A Valid Event Returns 200 With Event Id Header
     Response Status Should Be    ${response}    200
     Dictionary Should Contain Key    ${response.headers}    X-Audit-Event-Id
 
-Publishing An Event Missing A Required Field Returns 400
-    [Documentation]    An audit event missing the required ``eventType`` field must be
-    ...                rejected with HTTP 400 and a VALIDATION_ERROR error code.
+Reject event missing required field (400)
+    [Documentation]    POST missing `eventType` returns 400 VALIDATION_ERROR.
     [Tags]    auditflow    smoke    error-handling
     ${event}=    Build Invalid Audit Event Missing Required Field
     ${response}=    Publish Audit Event    ${event}

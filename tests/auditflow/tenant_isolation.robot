@@ -19,15 +19,8 @@ Resource         ../../resources/auditflow.resource
 Test Teardown    Delete All Sessions
 
 *** Test Cases ***
-Client-Supplied TenantId Cannot Change The Publish Outcome
-    [Documentation]    Two publishes on the same write-scope token — one without a body
-    ...                tenantId, one spoofing a unique never-provisioned tenantId — must yield
-    ...                the SAME status. The gateway stamps the token's tenant over the payload
-    ...                before gating, so a spoofed tenantId can neither unlock another tenant's
-    ...                pipelines (no sudden 200) nor smuggle the event into an unprovisioned
-    ...                tenant (no sudden 403). Environment-agnostic: passes whether or not the
-    ...                stamped t_mock tenant is provisioned, because both requests are judged
-    ...                as the SAME tenant either way.
+Ignore spoofed client TenantId (200|403)
+    [Documentation]    Payload tenantId must not override the gateway-stamped tenant.
     [Tags]    auditflow    regression    critical    auth    tenant-isolation
     Create AuditFlow Session
     ${control_id}=    Generate Correlation ID
@@ -42,13 +35,8 @@ Client-Supplied TenantId Cannot Change The Publish Outcome
     Should Be True    ${control.status_code} in (200, 403)
     ...    msg=Publish returned unexpected status ${control.status_code} (body: ${control.text}).
 
-Ingest Gate Rejection Uses The Contract Error Shape
-    [Documentation]    Wherever the AuditFlow tenant model is active and the token's tenant is
-    ...                not provisioned, the ingest gate must reject with HTTP 403 and the
-    ...                OpenAPI ``TENANT_NOT_PROVISIONED`` error code — never a 5xx, and never a
-    ...                silent 200 into a black hole. Where the tenant model is not yet deployed
-    ...                (or t_mock is provisioned) the publish is 200 and the case passes
-    ...                vacuously; the paired smoke/authz 200-cases already pin that path.
+Reject unprovisioned tenant (403)
+    [Documentation]    Ingest gate rejects unprovisioned tenants with 403 TENANT_NOT_PROVISIONED.
     [Tags]    auditflow    regression    auth    tenant-isolation    error-handling
     Create AuditFlow Session
     ${correlation_id}=    Generate Correlation ID
@@ -61,13 +49,8 @@ Ingest Gate Rejection Uses The Contract Error Shape
         ...    msg=Ingest-gate 403 carried the wrong error code: ${response.text}
     END
 
-Backend Logs Confirm A Spoofed TenantId Never Reached The Pipeline
-    [Documentation]    Local-k8s-only companion to "Client-Supplied TenantId Cannot Change The
-    ...                Publish Outcome": after a 200 publish carrying a unique spoofed body
-    ...                tenantId, the backend's routing/quarantine logs must never mention that
-    ...                spoofed tenant — proving the event was stamped and processed as the
-    ...                token's tenant, not the payload's. Attributable because both the
-    ...                correlationId and the spoofed tenantId are unique to this test call.
+Verify backend logs ignore spoofed TenantId (local-k8s)
+    [Documentation]    Backend logs must process event under token tenant, never the spoofed payload tenant.
     [Tags]    auditflow    regression    auth    tenant-isolation    local-k8s-only
     Skip Unless Local Kubernetes
     Create AuditFlow Session
