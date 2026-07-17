@@ -51,6 +51,22 @@ Build Valid Audit Event
     ...    extra=${extra}
     RETURN    ${event}
 
+Build Audit Event With Tenant
+    [Documentation]    Return a well-formed audit-event dict carrying an explicit client-supplied
+    ...                ``tenantId`` — used by tenant-isolation tests to prove the gateway-derived
+    ...                tenant is authoritative and the payload value is ignored.
+    [Arguments]    ${correlation_id}    ${tenant_id}
+    ${event}=    Build Valid Audit Event    ${correlation_id}
+    Set To Dictionary    ${event}    tenantId=${tenant_id}
+    RETURN    ${event}
+
+Generate Spoof Tenant Id
+    [Documentation]    Return a unique, schema-valid tenantId (``spoofed-<hex>``) that no
+    ...                environment ever provisions — its uniqueness makes log-absence checks
+    ...                attributable to a single test call.
+    ${uuid}=    Evaluate    __import__('uuid').uuid4().hex[:12]
+    RETURN    spoofed-${uuid}
+
 Build Invalid Audit Event Missing Required Field
     [Documentation]    Return an audit-event dict missing the required ``eventType`` field,
     ...                to assert the API rejects it with HTTP 400.
@@ -86,6 +102,17 @@ Pod Logs Should Contain Correlation Id
     ${logs}=    Fetch Recent Pod Logs    ${LABS64IO_K8S_NAMESPACE}    ${AUDITFLOW_K8S_DEPLOYMENT}    ${since}
     Should Contain    ${logs}    "correlationId": "${correlation_id}"
     ...    msg=Expected correlationId '${correlation_id}' not found in AuditFlow backend logs — event may not have been delivered.
+
+AuditFlow Backend Logs Should Not Mention Tenant
+    [Documentation]    Local-k8s-only. Assert the AuditFlow backend's recent logs never mention
+    ...                the given (unique, spoofed) tenantId in any routing/quarantine line —
+    ...                proving the gateway-stamped tenant, not the client payload, drove
+    ...                gating and routing. Callers must first sync on the same event's
+    ...                correlationId so the pipeline has demonstrably already run.
+    [Arguments]    ${tenant_id}    ${since}=90s
+    ${logs}=    Fetch Recent Pod Logs    ${LABS64IO_K8S_NAMESPACE}    ${AUDITFLOW_K8S_DEPLOYMENT}    ${since}
+    Should Not Contain    ${logs}    '${tenant_id}'
+    ...    msg=Spoofed client-supplied tenantId '${tenant_id}' appeared in AuditFlow backend logs — payload tenantId leaked past the authoritative gateway stamping.
 
 AuditFlow Backend Logs Should Not Contain Correlation Id
     [Documentation]    Local-k8s-only. Assert the AuditFlow backend's recent logs do NOT
