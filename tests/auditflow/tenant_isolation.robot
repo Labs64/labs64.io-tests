@@ -11,10 +11,6 @@ Documentation    Tenant isolation at the gateway edge for the AuditFlow tenant m
 ...              observable at the edge: (1) a spoofed body tenantId changes nothing, and
 ...              (2) when the ingest gate rejects, it does so with the contract's 403
 ...              ``TENANT_NOT_PROVISIONED`` shape, never a 5xx.
-...
-...              TODO(mock-oidc): add a second-tenant persona (different ``tenant`` claim) to
-...              overrides/mock-oidc/mock-oidc.yaml in labs64.io-helm-charts; then extend this
-...              suite with a true cross-tenant deny case.
 Resource         ../../resources/auditflow.resource
 Test Teardown    Delete All Sessions
 
@@ -48,6 +44,18 @@ Reject unprovisioned tenant (403)
         Should Be Equal As Strings    ${response.json()}[code]    TENANT_NOT_PROVISIONED
         ...    msg=Ingest-gate 403 carried the wrong error code: ${response.text}
     END
+
+Reject unprovisioned secondary tenant strictly (403)
+    [Documentation]    Using the t_mock_2 persona, which is guaranteed to be unprovisioned locally, proves a strict 403 rejection.
+    [Tags]    auditflow    regression    auth    tenant-isolation    error-handling
+    Create Session With Scope    tenant2_session    ${AUDITFLOW_BASE_URL}    auditflow-tenant-2
+    ${correlation_id}=    Generate Correlation ID
+    ${event}=    Build Valid Audit Event    ${correlation_id}
+    ${response}=    Publish Audit Event    ${event}    alias=tenant2_session
+    Should Be Equal As Integers    ${response.status_code}    403
+    ...    msg=Publish returned unexpected status ${response.status_code} for unprovisioned tenant t_mock_2.
+    Should Be Equal As Strings    ${response.json()}[code]    TENANT_NOT_PROVISIONED
+    ...    msg=Ingest-gate 403 carried the wrong error code: ${response.text}
 
 Verify backend logs ignore spoofed TenantId (local-k8s)
     [Documentation]    Backend logs must process event under token tenant, never the spoofed payload tenant.
