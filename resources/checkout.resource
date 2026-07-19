@@ -10,6 +10,7 @@ Resource         common.resource
 ${CHECKOUT_SESSION_ALIAS}     checkout
 ${CUSTOMER_READ_SCOPE}        customer:read
 ${CUSTOMER_WRITE_SCOPE}       customer:write
+${PURCHASE_ORDER_READ_SCOPE}  purchase-order:read
 
 *** Keywords ***
 Create Checkout Session With Scope
@@ -26,4 +27,13 @@ List Customers
     [Documentation]    GET /customers — requires customer:read scope.
     [Arguments]    ${alias}=${CHECKOUT_SESSION_ALIAS}
     ${response}=    GET On Session    ${alias}    /customers    expected_status=any
+    RETURN    ${response}
+
+List Purchase Orders
+    [Documentation]    GET /purchase-orders — requires purchase-order:read scope.
+    ...                Domain-tier Cerbos Data PEP (RFC-07 pilot): the response is
+    ...                additionally row-filtered by the QueryPlanner/JPA Specification
+    ...                translator, not just gated by the scope check.
+    [Arguments]    ${alias}=${CHECKOUT_SESSION_ALIAS}
+    ${response}=    GET On Session    ${alias}    /purchase-orders    expected_status=any
     RETURN    ${response}

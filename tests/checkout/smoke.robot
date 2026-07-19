@@ -11,3 +11,14 @@ Allow read-scoped access to customers (200)
     ${response}=    List Customers    checkout-read
     Response Status Should Be    ${response}    200
     Response Should Contain Key    ${response}    items
+
+Allow read-scoped access to purchase orders (200)
+    [Documentation]    GET /purchase-orders with purchase-order:read token returns 200.
+    ...                Exercises the Cerbos Data PEP pilot (RFC-07): the domain policy's
+    ...                PlanResources row filter must resolve and translate cleanly for an
+    ...                ordinary tenant-scoped principal, not just return an authz decision.
+    [Tags]    checkout    smoke    critical
+    Create Checkout Session With Scope    purchase-order:read    checkout-po-read
+    ${response}=    List Purchase Orders    checkout-po-read
+    Response Status Should Be    ${response}    200
+    Response Should Contain Key    ${response}    items
