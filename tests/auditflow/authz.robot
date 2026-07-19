@@ -1,12 +1,12 @@
 *** Settings ***
 Documentation    AuditFlow authentication & authorization regression, asserted entirely at the
-...              gateway edge (Traefik authproxy + Cedar). Mirrors the manual scope-matrix
+...              gateway edge (Traefik authproxy + cerbos). Mirrors the manual scope-matrix
 ...              validation this suite replaces: a token with the wrong scope must be denied
 ...              (403), the correct scope must be allowed (200), and missing/malformed
-...              credentials must be rejected (401) before any Cedar decision is made.
+...              credentials must be rejected (401) before any Authz Decision is made.
 ...
 ...              The ``local-k8s-only`` tagged cases below additionally corroborate the HTTP
-...              assertion against kubectl pod logs (authproxy Cedar decision + AuditFlow
+...              assertion against kubectl pod logs (authproxy Authz Decision + AuditFlow
 ...              backend delivery) — a deliberate, narrow exception to this suite's normal
 ...              "no kubectl" rule. They call `Skip Unless Local Kubernetes` first and skip
 ...              cleanly outside the local k3d dev cluster, so CI never fails on them. See
@@ -37,7 +37,7 @@ Reject malformed bearer token (401)
     Response Status Should Be    ${response}    401
 
 Reject wrong scope (403)
-    [Documentation]    Token missing audit-event:write scope is denied with 403 by Cedar.
+    [Documentation]    Token missing audit-event:write scope is denied with 403 by cerbos.
     [Tags]    auditflow    regression    critical    auth    tenant-isolation
     Create Session With Scope    auditflow-wrong-scope    ${AUDITFLOW_BASE_URL}    audit-event:read
     ${event}=    Build Valid Audit Event    wrong-scope-check
@@ -62,7 +62,7 @@ Allow multiple scopes including correct scope (200)
     Response Status Should Be    ${response}    200
 
 Reject token with no scopes (403)
-    [Documentation]    Token with empty scope set is denied with 403 by Cedar.
+    [Documentation]    Token with empty scope set is denied with 403 by cerbos.
     [Tags]    auditflow    regression    critical    auth
     Create Session With Scope    auditflow-no-scope    ${AUDITFLOW_BASE_URL}    no-access
     ${event}=    Build Valid Audit Event    no-scope-check
@@ -90,8 +90,8 @@ Verify authproxy logs show 401 (local-k8s)
     Response Status Should Be    ${response}    401
     Authproxy Logs Should Show No-Token Rejection For Publish
 
-Verify Cedar deny in authproxy logs for wrong scope (local-k8s)
-    [Documentation]    Authproxy logs show Cedar deny and event never reaches backend.
+Verify Cerbos deny in authproxy logs for wrong scope (local-k8s)
+    [Documentation]    Authproxy logs show Cerbos deny and event never reaches backend.
     [Tags]    auditflow    regression    auth    tenant-isolation    local-k8s-only
     Skip Unless Local Kubernetes
     Create Session With Scope    auditflow-wrong-scope-k8s    ${AUDITFLOW_BASE_URL}    audit-event:read
@@ -99,11 +99,11 @@ Verify Cedar deny in authproxy logs for wrong scope (local-k8s)
     ${event}=    Build Valid Audit Event    ${correlation_id}
     ${response}=    Publish Audit Event    ${event}    alias=auditflow-wrong-scope-k8s
     Response Status Should Be    ${response}    403
-    Authproxy Logs Should Show Cedar Decision For Publish    enforced-deny
+    Authproxy Logs Should Show Authz Decision For Publish    enforced-deny
     AuditFlow Backend Logs Should Not Contain Correlation Id    ${correlation_id}
 
-Verify Cedar allow in authproxy logs for correct scope (local-k8s)
-    [Documentation]    Authproxy logs show Cedar allow and event reaches backend.
+Verify Cerbos allow in authproxy logs for correct scope (local-k8s)
+    [Documentation]    Authproxy logs show Cerbos allow and event reaches backend.
     [Tags]    auditflow    regression    auth    local-k8s-only
     Skip Unless Local Kubernetes
     Create Session With Scope    auditflow-correct-scope-k8s    ${AUDITFLOW_BASE_URL}    audit-event:write
@@ -111,11 +111,11 @@ Verify Cedar allow in authproxy logs for correct scope (local-k8s)
     ${event}=    Build Valid Audit Event    ${correlation_id}
     ${response}=    Publish Audit Event    ${event}    alias=auditflow-correct-scope-k8s
     Response Status Should Be    ${response}    200
-    Authproxy Logs Should Show Cedar Decision For Publish    enforced-allow
+    Authproxy Logs Should Show Authz Decision For Publish    enforced-allow
     AuditFlow Backend Logs Should Contain Correlation Id    ${correlation_id}
 
-Verify Cedar allow in authproxy logs for multiple scopes (local-k8s)
-    [Documentation]    Authproxy logs show Cedar allow and event reaches backend.
+Verify Cerbos allow in authproxy logs for multiple scopes (local-k8s)
+    [Documentation]    Authproxy logs show Cerbos allow and event reaches backend.
     [Tags]    auditflow    regression    auth    local-k8s-only
     Skip Unless Local Kubernetes
     Create Session With Scope    auditflow-multi-scope-k8s    ${AUDITFLOW_BASE_URL}
@@ -124,11 +124,11 @@ Verify Cedar allow in authproxy logs for multiple scopes (local-k8s)
     ${event}=    Build Valid Audit Event    ${correlation_id}
     ${response}=    Publish Audit Event    ${event}    alias=auditflow-multi-scope-k8s
     Response Status Should Be    ${response}    200
-    Authproxy Logs Should Show Cedar Decision For Publish    enforced-allow
+    Authproxy Logs Should Show Authz Decision For Publish    enforced-allow
     AuditFlow Backend Logs Should Contain Correlation Id    ${correlation_id}
 
-Verify Cedar deny in authproxy logs for no scopes (local-k8s)
-    [Documentation]    Authproxy logs show Cedar deny and event never reaches backend.
+Verify Cerbos deny in authproxy logs for no scopes (local-k8s)
+    [Documentation]    Authproxy logs show Cerbos deny and event never reaches backend.
     [Tags]    auditflow    regression    auth    local-k8s-only
     Skip Unless Local Kubernetes
     Create Session With Scope    auditflow-no-scope-k8s    ${AUDITFLOW_BASE_URL}    no-access
@@ -136,5 +136,5 @@ Verify Cedar deny in authproxy logs for no scopes (local-k8s)
     ${event}=    Build Valid Audit Event    ${correlation_id}
     ${response}=    Publish Audit Event    ${event}    alias=auditflow-no-scope-k8s
     Response Status Should Be    ${response}    403
-    Authproxy Logs Should Show Cedar Decision For Publish    enforced-deny
+    Authproxy Logs Should Show Authz Decision For Publish    enforced-deny
     AuditFlow Backend Logs Should Not Contain Correlation Id    ${correlation_id}

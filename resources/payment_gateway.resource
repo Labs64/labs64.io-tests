@@ -76,9 +76,9 @@ Authproxy Logs Should Show No-Token Rejection For Payment Providers
     [Arguments]    ${since}=90s
     Authproxy Logs Should Show No-Token Rejection    GET    ${PAYMENT_GATEWAY_PROVIDERS_PATH}    ${since}
 
-Authproxy Logs Should Show Cedar Decision For Payment Providers
+Authproxy Logs Should Show Authz Decision For Payment Providers
     [Documentation]    Local-k8s-only. Thin wrapper over the generic `Authproxy Logs Should
-    ...                Show Cedar Decision` fixed to Payment Gateway's listPaymentProviders
+    ...                Show Authz Decision` fixed to Payment Gateway's listPaymentProviders
     ...                operation — the anchor op the base (non-k8s) scope-matrix cases already
     ...                use, so the log-corroboration cases mirror them 1:1.
     ...
@@ -88,10 +88,10 @@ Authproxy Logs Should Show Cedar Decision For Payment Providers
     ...                unambiguously identifiable in the backend's logs; payment-provider reads
     ...                have no equivalent per-request identifier, so a backend-log check here
     ...                couldn't be reliably attributed to one specific test call. Edge-decision
-    ...                corroboration is still the security-relevant half — it proves Cedar itself
+    ...                corroboration is still the security-relevant half — it proves cerbos itself
     ...                recorded the deny/allow, not just that the HTTP client received it.
     [Arguments]    ${outcome}    ${since}=90s
-    Authproxy Logs Should Show Cedar Decision    payment-gateway    listPaymentProviders    ${outcome}    ${since}
+    Authproxy Logs Should Show Authz Decision    payment-gateway    listPaymentProviders    ${outcome}    ${since}
 
 List Payments
     [Documentation]    GET /payments — requires payment:read scope.
@@ -102,7 +102,7 @@ List Payments
 Create Payment
     [Documentation]    POST /payments — requires payment:write scope.
     [Arguments]    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
-    # Minimal stub body; authz checks occur before body validation in Cedar.
+    # Minimal stub body; authz checks occur before body validation in cerbos.
     ${body}=    Create Dictionary    amount=100    currency=USD
     ${response}=    POST On Session    ${alias}    /payments    json=${body}    expected_status=any
     RETURN    ${response}

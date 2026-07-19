@@ -1,12 +1,12 @@
 *** Settings ***
 Documentation    Payment Gateway authorization scope matrix, asserted at the gateway edge
-...              (Traefik authproxy + Cedar). Mirrors the manual scope-matrix validation this
+...              (Traefik authproxy + cerbos). Mirrors the manual scope-matrix validation this
 ...              suite replaces: listPaymentDefinitions is public; listPaymentProviders needs
 ...              payment-provider:read; a token missing that scope is denied (403) even though
 ...              it authenticates successfully.
 ...
 ...              The ``local-k8s-only`` tagged cases below additionally corroborate the HTTP
-...              assertion against the authproxy's Cedar decision log (kubectl) for the
+...              assertion against the authproxy's Authz Decision log (kubectl) for the
 ...              listPaymentProviders operation — a deliberate, narrow exception to this suite's
 ...              normal "no kubectl" rule. They call `Skip Unless Local Kubernetes` first and
 ...              skip cleanly outside the local k3d dev cluster, so CI never fails on them. See
@@ -51,7 +51,7 @@ Reject malformed bearer token (401)
     Response Status Should Be    ${response}    401
 
 Reject wrong scope for payment providers (403)
-    [Documentation]    Token missing payment-provider:read scope is denied with 403 by Cedar.
+    [Documentation]    Token missing payment-provider:read scope is denied with 403 by cerbos.
     [Tags]    payment-gateway    regression    critical    auth    tenant-isolation
     Create Payment Gateway Session With Scope    payment-provider:write    pg-authz-wrong-scope
     ${response}=    List Payment Providers    pg-authz-wrong-scope
@@ -79,7 +79,7 @@ Reject get provider details with read-only scope (403)
     Response Status Should Be    ${response}    403
 
 Reject token with no scopes (403)
-    [Documentation]    Token with empty scope set is denied with 403 by Cedar.
+    [Documentation]    Token with empty scope set is denied with 403 by cerbos.
     [Tags]    payment-gateway    regression    critical    auth
     Create Payment Gateway Session With Scope    no-access    pg-authz-no-scopes
     ${response}=    List Payment Providers    pg-authz-no-scopes
@@ -94,32 +94,32 @@ Verify authproxy logs show 401 (local-k8s)
     Response Status Should Be    ${response}    401
     Authproxy Logs Should Show No-Token Rejection For Payment Providers
 
-Verify Cedar deny in authproxy logs for wrong scope (local-k8s)
-    [Documentation]    Authproxy logs show Cedar deny for missing read scope.
+Verify Cerbos deny in authproxy logs for wrong scope (local-k8s)
+    [Documentation]    Authproxy logs show Cerbos deny for missing read scope.
     [Tags]    payment-gateway    regression    auth    tenant-isolation    local-k8s-only
     Skip Unless Local Kubernetes
     Create Payment Gateway Session With Scope    payment-provider:write    pg-authz-wrong-scope-k8s
     ${response}=    List Payment Providers    pg-authz-wrong-scope-k8s
     Response Status Should Be    ${response}    403
-    Authproxy Logs Should Show Cedar Decision For Payment Providers    enforced-deny
+    Authproxy Logs Should Show Authz Decision For Payment Providers    enforced-deny
 
-Verify Cedar allow in authproxy logs for read scope (local-k8s)
-    [Documentation]    Authproxy logs show Cedar allow for valid read scope.
+Verify Cerbos allow in authproxy logs for read scope (local-k8s)
+    [Documentation]    Authproxy logs show Cerbos allow for valid read scope.
     [Tags]    payment-gateway    regression    auth    local-k8s-only
     Skip Unless Local Kubernetes
     Create Payment Gateway Session With Scope    payment-provider:read    pg-authz-correct-scope-k8s
     ${response}=    List Payment Providers    pg-authz-correct-scope-k8s
     Response Status Should Be    ${response}    200
-    Authproxy Logs Should Show Cedar Decision For Payment Providers    enforced-allow
+    Authproxy Logs Should Show Authz Decision For Payment Providers    enforced-allow
 
-Verify Cedar deny in authproxy logs for no scopes (local-k8s)
-    [Documentation]    Authproxy logs show Cedar deny for empty scope set.
+Verify Cerbos deny in authproxy logs for no scopes (local-k8s)
+    [Documentation]    Authproxy logs show Cerbos deny for empty scope set.
     [Tags]    payment-gateway    regression    auth    local-k8s-only
     Skip Unless Local Kubernetes
     Create Payment Gateway Session With Scope    no-access    pg-authz-no-scopes-k8s
     ${response}=    List Payment Providers    pg-authz-no-scopes-k8s
     Response Status Should Be    ${response}    403
-    Authproxy Logs Should Show Cedar Decision For Payment Providers    enforced-deny
+    Authproxy Logs Should Show Authz Decision For Payment Providers    enforced-deny
 
 Reject missing read scope for payments (403)
     [Documentation]    GET /payments requires payment:read; token missing it is denied.

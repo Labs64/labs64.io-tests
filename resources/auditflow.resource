@@ -79,11 +79,11 @@ Authproxy Logs Should Show No-Token Rejection For Publish
     [Arguments]    ${since}=90s
     Authproxy Logs Should Show No-Token Rejection    POST    ${AUDITFLOW_GATEWAY_PATH}    ${since}
 
-Authproxy Logs Should Show Cedar Decision For Publish
+Authproxy Logs Should Show Authz Decision For Publish
     [Documentation]    Local-k8s-only. Thin wrapper over the generic `Authproxy Logs Should
-    ...                Show Cedar Decision` fixed to AuditFlow's publishEvent operation.
+    ...                Show Authz Decision` fixed to AuditFlow's publishEvent operation.
     [Arguments]    ${outcome}    ${since}=90s
-    Authproxy Logs Should Show Cedar Decision    auditflow    publishEvent    ${outcome}    ${since}
+    Authproxy Logs Should Show Authz Decision    auditflow    publishEvent    ${outcome}    ${since}
 
 AuditFlow Backend Logs Should Contain Correlation Id
     [Documentation]    Local-k8s-only. Assert the AuditFlow backend's recent logs contain the

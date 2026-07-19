@@ -11,7 +11,7 @@ Black-box, API-edge integration & regression suite for the Labs64.IO ecosystem, 
 Every test must map to an operation that actually exists in the module's OpenAPI spec (e.g. `labs64.io-auditflow/auditflow-api/src/main/resources/openapi/openapi-audit-v1.yaml`). Before writing or updating a test:
 
 1. Read the module's OpenAPI spec — its `paths` are the only endpoints that exist. Do not guess at conventional-sounding endpoints (`/health`, `/events`) that "should" exist — this suite previously drifted this way (auditflow tests targeted a `GET /events` query endpoint that was never in the contract; AuditFlow is a router with no query API by design, see its `AGENTS.md`).
-2. Read each operation's `x-labs64-auth` annotation (`public: true`, or `tenant: true` + `scopes: [...]`) — this is the same annotation the authproxy's Cedar policy generation reads, and it is the source of truth for what the auth/authz matrix in `authz.robot` should assert.
+2. Read each operation's `x-labs64-auth` annotation (`public: true`, or `tenant: true` + `scopes: [...]`) — this is the same annotation the authproxy's cerbos policy generation reads, and it is the source of truth for what the auth/authz matrix in `authz.robot` should assert.
 3. Use the `test-suite-steward` skill (workspace-level `.agents/skills/test-suite-steward/`) to diff existing tests against the current spec and scaffold the matrix — it automates steps 1–2, and also covers running and auditing the suite more broadly.
 
 ## Running tests
@@ -23,7 +23,7 @@ every recipe still shells out to plain `robot` — see "What NOT to do" below.
 
 ## Gateway edge only
 
-All base URLs point at the Traefik/authproxy gateway (`http://gateway.localhost/<module>/api/v1`), never a backend port directly. Cedar authorization is enforced at the gateway; backends trust gateway-supplied `X-Auth-*` headers and in the `local` profile may even fall back to a default tenant. Hitting a backend directly makes an authz test meaningless — it would pass or fail regardless of the token.
+All base URLs point at the Traefik/authproxy gateway (`http://gateway.localhost/<module>/api/v1`), never a backend port directly. Cerbos authorization is enforced at the gateway; backends trust gateway-supplied `X-Auth-*` headers and in the `local` profile may even fall back to a default tenant. Hitting a backend directly makes an authz test meaningless — it would pass or fail regardless of the token.
 
 ## Minting tokens with `mock-oidc`
 
@@ -56,7 +56,7 @@ See `README.md` for the full table. The tags that matter most when writing a new
 ## Local-only pod-log corroboration (explicit exception)
 
 `tests/auditflow/authz.robot` has a handful of test cases tagged `local-k8s-only` that
-additionally corroborate an HTTP-status assertion against `kubectl logs` (the authproxy's Cedar
+additionally corroborate an HTTP-status assertion against `kubectl logs` (the authproxy's cerbos
 decision log, and the AuditFlow backend's delivery log via `correlationId`). This is a
 deliberate, narrow exception to "Gateway edge only" above, added because the auth/authz path has
 two effects a pure HTTP client can't see: whether the *edge* actually made the decision it

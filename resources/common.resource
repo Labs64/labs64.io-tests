@@ -8,7 +8,7 @@ Library          Process
 
 *** Variables ***
 # All module URLs go through the Traefik/authproxy gateway edge — never straight to a
-# backend port. Authorization (Cedar) is enforced at the gateway; a backend hit directly
+# backend port. Authorization (cerbos) is enforced at the gateway; a backend hit directly
 # would skip it entirely (services trust gateway-supplied X-Auth-* headers).
 ${GATEWAY_BASE_URL}           %{GATEWAY_BASE_URL=http://gateway.localhost}
 ${AUDITFLOW_BASE_URL}         %{AUDITFLOW_BASE_URL=${GATEWAY_BASE_URL}/auditflow/api/v1}
@@ -134,17 +134,19 @@ Fetch Recent Pod Logs
     ...    shell=True
     RETURN    ${result.stdout}
 
-Authproxy Logs Should Show Cedar Decision
-    [Documentation]    Local-k8s-only. Assert the authproxy recently logged a Cedar ``${outcome}``
+Authproxy Logs Should Show Authz Decision
+    [Documentation]    Local-k8s-only. Assert the authproxy recently logged a cerbos ``${outcome}``
     ...                (``enforced-allow``/``enforced-deny``) for ``${module}``'s ``${op}``
     ...                operation — corroborates the HTTP status a test already asserted against
     ...                the edge's own independent decision log. Matches the log format
-    ...                ``cedar outcome=<outcome> module=<module> op=<op>``. Generic across
+    ...                ``authz outcome=<outcome> engine=cerbos kind=<expected_kind> action=<op>``. Generic across
     ...                modules; each module's resource file may wrap this with its own defaults.
     [Arguments]    ${module}    ${op}    ${outcome}    ${since}=90s
+    ${expected_kind}=    Replace String    ${module}    -    _
+    ${expected_kind}=    Set Variable    ${expected_kind}_api
     ${logs}=    Fetch Recent Pod Logs    ${LABS64IO_K8S_NAMESPACE}    ${AUTHPROXY_K8S_DEPLOYMENT}    ${since}
-    Should Contain    ${logs}    outcome=${outcome} module=${module} op=${op}
-    ...    msg=Expected authproxy Cedar outcome '${outcome}' for ${module}::${op} not found in recent logs.
+    Should Contain    ${logs}    authz outcome=${outcome} engine=cerbos kind=${expected_kind} action=${op}
+    ...    msg=Expected authproxy Cerbos outcome '${outcome}' for ${module}::${op} not found in recent logs.
 
 Authproxy Logs Should Show No-Token Rejection
     [Documentation]    Local-k8s-only. Assert the authproxy recently logged a no-token rejection

@@ -8,7 +8,7 @@ Integration & Regression Test Suite for the [Labs64.IO Ecosystem](https://labs64
 
 Black-box API-edge regression suite for the [Labs64.IO](https://labs64.io) platform, built with [Robot Framework](https://robotframework.org/) and [`robotframework-requests`](https://github.com/MarketSquare/robotframework-requests).
 
-Every test asserts through the **gateway edge** (Traefik + authproxy) only — never a backend port directly, no RabbitMQ/kubectl/internal infrastructure access. This matches how an ISV, AI agent, or browser actually experiences the platform, keeps the suite's secrets surface minimal, and is the only vantage point from which Cedar authorization is actually enforced (a backend hit directly would skip it).
+Every test asserts through the **gateway edge** (Traefik + authproxy) only — never a backend port directly, no RabbitMQ/kubectl/internal infrastructure access. This matches how an ISV, AI agent, or browser actually experiences the platform, keeps the suite's secrets surface minimal, and is the only vantage point from which cerbos authorization is actually enforced (a backend hit directly would skip it).
 
 Covers `auditflow` and `payment-gateway` today. See `AGENTS.md` for how to extend this to another module.
 
