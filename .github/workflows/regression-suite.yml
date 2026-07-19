@@ -7,8 +7,8 @@ on:
     - cron: '0 3 * * *'   # nightly full regression
 
 env:
-  # All tests run through the gateway edge, never straight to a backend port — Cedar
-  # authorization is enforced at the gateway. Override these via repository/environment
+  # All tests run through the gateway edge, never straight to a backend port.
+  # Authorization is enforced at the gateway. Override these via repository/environment
   # variables to point at the stack under test (e.g. a self-hosted runner attached to the
   # local k3d cluster). mock-oidc mints scoped M2M tokens on demand; see resources/common.resource.
   GATEWAY_BASE_URL: ${{ vars.GATEWAY_BASE_URL || 'http://gateway.localhost' }}
