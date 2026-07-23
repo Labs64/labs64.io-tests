@@ -37,7 +37,7 @@ ${LOCAL_K8S_CONTEXT}           %{LOCAL_K8S_CONTEXT=k3d-labs64io}
 # being redeclared per module. Module backend deployment names (e.g. AUDITFLOW_K8S_DEPLOYMENT)
 # stay in each module's own resource file. Never used unless `Local Kubernetes Available` is true.
 ${LABS64IO_K8S_NAMESPACE}      %{LABS64IO_K8S_NAMESPACE=labs64io}
-${AUTHPROXY_K8S_DEPLOYMENT}    %{AUTHPROXY_K8S_DEPLOYMENT=labs64io-traefik-authproxy}
+${AUTHPROXY_K8S_DEPLOYMENT}    %{AUTHPROXY_K8S_DEPLOYMENT=gateway-common}
 
 *** Keywords ***
 Get OIDC Token
@@ -132,6 +132,11 @@ Fetch Recent Pod Logs
     ${result}=    Run Process
     ...    kubectl logs -n ${namespace} deploy/${deployment} --all-containers\=true --since\=${since}
     ...    shell=True
+    # Fail loudly on a bad namespace/deployment reference (e.g. a stale name after a chart
+    # rename) instead of returning empty stdout — which would otherwise surface downstream
+    # as a confusing "'' does not contain ..." assertion failure with no clue why.
+    Should Be Equal As Integers    ${result.rc}    0
+    ...    msg=kubectl logs failed for deploy/${deployment} -n ${namespace}: ${result.stderr}
     RETURN    ${result.stdout}
 
 Authproxy Logs Should Show Authz Decision
