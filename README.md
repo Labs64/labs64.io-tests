@@ -63,7 +63,7 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-You need a running Labs64.IO stack reachable through its gateway edge — either the [local k3d cluster](../labs64.io-helm-charts/DEVELOPERS.md) (`just local-up` from `labs64.io-helm-charts/`) or an equivalent environment with `gateway.localhost` and `mock-oidc.localhost` resolvable. `mock-oidc` is a **dev-only** OIDC provider that mints scoped M2M tokens on demand — the auth/authz tests use it to mint tokens with exactly the scope they want to assert against, so no manually-provisioned credentials are needed for local runs.
+You need a running Labs64.IO stack reachable through its gateway edge — either the [local k3d cluster](../labs64.io-helm-charts/DEVELOPERS.md) (`just up` from `labs64.io-helm-charts/`) or one of the other [Deployment Modes](../labs64.io-helm-charts/README.md#deployment-modes) (AWS QA/Staging/Prod, or your own BYO-infra cluster) with `gateway.localhost`-equivalent base URLs and a reachable `mock-oidc`-equivalent token endpoint (see [Targeting a different environment](#targeting-a-different-environment) below). `mock-oidc` is a **dev-only** OIDC provider that mints scoped M2M tokens on demand — the auth/authz tests use it to mint tokens with exactly the scope they want to assert against, so no manually-provisioned credentials are needed for local runs.
 
 ## Running Tests
 
