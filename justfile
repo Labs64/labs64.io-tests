@@ -19,6 +19,7 @@
 # other non-plain-TTY invocations). `_run` below prints its own results pointer afterward, since
 # Robot itself now prints nothing; the full detail always lives in results/log.html regardless.
 ROBOT := ".venv/bin/robot --console none"
+ALL_TESTS := "tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/"
 
 # List available recipes
 default:
@@ -69,15 +70,15 @@ _run *args: install
 
 # Fast, PR-gating subset across all modules (keep this one fast — see AGENTS.md)
 smoke:
-    @just _run --include smoke tests/
+    @just _run --include smoke {{ALL_TESTS}}
 
 # Guard tests for known-critical defect classes — always gating, never skipped
 p0:
-    @just _run --include p0-blocker tests/
+    @just _run --include p0-blocker {{ALL_TESTS}}
 
 # Full functional regression, excluding quarantined flaky cases (nightly shape)
 regression:
-    @just _run --include regression --exclude flaky tests/
+    @just _run --include regression --exclude flaky {{ALL_TESTS}}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Targeted runs
@@ -85,15 +86,19 @@ regression:
 
 # Auth/authz matrix only, across all modules
 auth:
-    @just _run --include auth tests/
+    @just _run --include auth {{ALL_TESTS}}
 
 # Local-k8s-only log-corroboration cases — self-skip unless local k3d is the active kubectl context
 local-k8s:
-    @just _run --include local-k8s-only tests/
+    @just _run --include local-k8s-only {{ALL_TESTS}}
+
+# Run common tests (e2e, integration) + all known modules tests
+test-common:
+    @just _run {{ALL_TESTS}}
 
 # Everything for one module, no tag filter: just test-module auditflow
 test-module module:
-    @just _run tests/{{module}}/
+    @just _run ../labs64.io-{{module}}/tests/e2e/
 
 # One file: just test-file tests/auditflow/authz.robot
 test-file file:
@@ -105,7 +110,7 @@ test-case name file:
 
 # Everything, no tag filter at all (slowest option)
 all:
-    @just _run tests/
+    @just _run {{ALL_TESTS}}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Results

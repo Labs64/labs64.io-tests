@@ -48,7 +48,7 @@ jobs:
             --output output.xml \
             --log log.html \
             --report report.html \
-            tests/${{ matrix.service }}/
+            ../labs64.io-${{ matrix.service }}/tests/e2e/
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -79,7 +79,7 @@ jobs:
             --output output.xml \
             --log log.html \
             --report report.html \
-            tests/
+            tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -111,7 +111,7 @@ jobs:
             --output output.xml \
             --log log.html \
             --report report.html \
-            tests/
+            tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
 
       - uses: actions/upload-artifact@v4
         if: always()
