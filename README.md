@@ -132,3 +132,7 @@ The GitHub Actions workflow (`.github/workflows/regression-suite.yml`) runs:
 ## Adding, running, or auditing tests
 
 See the `test-suite-steward` skill (workspace-level `.agents/skills/test-suite-steward/`) — it covers where a new test belongs, the OpenAPI `x-labs64-auth`-driven authz matrix, how to run and interpret results, and a periodic suite-health audit (drift, coverage gaps, duplication, flaky handling).
+
+## License
+
+The core of the *Labs64.IO Ecosystem* is entirely open source and free forever. Community modules are licensed under [Apache License 2.0](LICENSE).
