@@ -14,6 +14,15 @@ ${AUDITFLOW_SESSION_ALIAS}    auditflow
 ${AUDITFLOW_WRITE_SCOPE}      audit-event:write
 ${AUDITFLOW_GATEWAY_PATH}     /auditflow/api/v1/audit/publish
 
+# Dedicated regression-test tenants (item 12), stamped by mock-oidc personas
+# `auditflow-regression` / `auditflow-regression-quota` (never t_mock, which every
+# other suite shares) — see overrides/mock-oidc/mock-oidc.yaml and
+# overrides/auditflow/values.local.yaml's `t_regression`/`t_regression_quota`.
+${AUDITFLOW_REGRESSION_SCOPE}          auditflow-regression
+${AUDITFLOW_REGRESSION_QUOTA_SCOPE}    auditflow-regression-quota
+${AUDITFLOW_REGRESSION_SESSION}          auditflow-regression
+${AUDITFLOW_REGRESSION_QUOTA_SESSION}    auditflow-regression-quota
+
 # Local-k8s-only: AuditFlow's own backend deployment name for kubectl log corroboration (see
 # AGENTS.md "Local-only pod-log corroboration"). Shared namespace/authproxy deployment vars
 # live in common.resource. Never used unless `Local Kubernetes Available` is true.
@@ -122,6 +131,72 @@ AuditFlow Backend Logs Should Not Contain Correlation Id
     ${logs}=    Fetch Recent Pod Logs    ${LABS64IO_K8S_NAMESPACE}    ${AUDITFLOW_K8S_DEPLOYMENT}    ${since}
     Should Not Contain    ${logs}    "correlationId": "${correlation_id}"
     ...    msg=Denied request's correlationId '${correlation_id}' unexpectedly reached the AuditFlow backend.
+
+Create Regression Session
+    [Documentation]    Open a session for the dedicated t_regression tenant (item 12: pipeline
+    ...                routing, condition operators, secretRef resolution). Never t_mock —
+    ...                this tenant's pipelines are deliberately failing probes, isolated so
+    ...                they cannot affect any other suite.
+    Create Session With Scope    ${AUDITFLOW_REGRESSION_SESSION}    ${AUDITFLOW_BASE_URL}    ${AUDITFLOW_REGRESSION_SCOPE}
+
+Create Regression Quota Session
+    [Documentation]    Open a session for the dedicated t_regression_quota tenant (item 12:
+    ...                quota enforcement) — provisioned with a tiny rateLimitPerSec/burst so a
+    ...                handful of rapid publishes deterministically trips 429.
+    Create Session With Scope    ${AUDITFLOW_REGRESSION_QUOTA_SESSION}    ${AUDITFLOW_BASE_URL}    ${AUDITFLOW_REGRESSION_QUOTA_SCOPE}
+
+Build Probe Audit Event
+    [Documentation]    Return an audit-event whose `extra.op`/`extra.value` (and, for the
+    ...                match:any pipeline, `extra.op_any`) drive exactly one t_regression probe
+    ...                pipeline's condition — see values.local.yaml's `t_regression` pipeline
+    ...                comment for the discriminator scheme. Pass ``${EMPTY}`` for ``value`` to
+    ...                omit `extra.value` entirely (the exists/notExists negative cases).
+    [Arguments]    ${correlation_id}    ${op}    ${value}=${EMPTY}    ${op_any}=${EMPTY}
+    ${event}=    Build Valid Audit Event    ${correlation_id}
+    Set To Dictionary    ${event}[extra]    op=${op}
+    IF    "${value}" != "${EMPTY}"
+        Set To Dictionary    ${event}[extra]    value=${value}
+    END
+    IF    "${op_any}" != "${EMPTY}"
+        Set To Dictionary    ${event}[extra]    op_any=${op_any}
+    END
+    RETURN    ${event}
+
+Get DLQ Message Count
+    [Documentation]    GET /actuator/dlq/<tenantId> and return the tenant-scoped, non-destructive
+    ...                message count (every message is peeked then nacked back — inspection never
+    ...                consumes). Uses the caller's own base session so the request goes through
+    ...                the gateway edge, matching every other assertion in this suite.
+    [Arguments]    ${alias}    ${tenant_id}
+    ${response}=    GET On Session    ${alias}    /actuator/dlq/${tenant_id}    expected_status=200
+    RETURN    ${response.json()}[messageCount]
+
+Wait Until DLQ Count At Least
+    [Documentation]    Poll GET /actuator/dlq/<tenantId> until messageCount reaches at least
+    ...                ``${minimum}``, or fail after ``${timeout}``. Delivery is async (broker +
+    ...                retry/backoff before a permanently-failing pipeline reaches the DLQ), so a
+    ...                single immediate GET would be racy.
+    [Arguments]    ${alias}    ${tenant_id}    ${minimum}    ${timeout}=30s
+    Wait Until Keyword Succeeds    ${timeout}    1s
+    ...    DLQ Count Should Be At Least    ${alias}    ${tenant_id}    ${minimum}
+
+DLQ Count Should Be At Least
+    [Documentation]    Single-attempt helper for `Wait Until DLQ Count At Least`.
+    [Arguments]    ${alias}    ${tenant_id}    ${minimum}
+    ${count}=    Get DLQ Message Count    ${alias}    ${tenant_id}
+    Should Be True    ${count} >= ${minimum}
+    ...    msg=Expected DLQ count for tenant '${tenant_id}' to reach at least ${minimum}, got ${count}.
+    RETURN    ${count}
+
+Replay DLQ
+    [Documentation]    POST /actuator/dlq/<tenantId> (replay). Draining and republishing happens
+    ...                synchronously inside this call (each message is forwarded then acked
+    ...                before the next `basicGet`), so ``retriedCount`` in the response already
+    ...                reflects the full drain by the time this keyword returns — no polling
+    ...                needed to observe it.
+    [Arguments]    ${alias}    ${tenant_id}
+    ${response}=    POST On Session    ${alias}    /actuator/dlq/${tenant_id}    expected_status=200
+    RETURN    ${response.json()}
 
 Build Oversized Audit Event
     [Documentation]    Return an audit-event dict with a payload exceeding 2MB to test size limits.

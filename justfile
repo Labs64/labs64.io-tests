@@ -112,6 +112,9 @@ test-case name file:
 all:
     @just _run {{ALL_TESTS}}
 
+# Alias for `all`, kept for parity with the `test` recipe every other module justfile exposes
+test: all
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Results
 # ─────────────────────────────────────────────────────────────────────────────

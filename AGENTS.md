@@ -14,6 +14,21 @@ Every test must map to an operation that actually exists in the module's OpenAPI
 2. Read each operation's `x-labs64-auth` annotation (`public: true`, or `tenant: true` + `scopes: [...]`) — this is the same annotation the authproxy's cerbos policy generation reads, and it is the source of truth for what the auth/authz matrix in `authz.robot` should assert.
 3. Use the `test-suite-steward` skill (workspace-level `.agents/skills/test-suite-steward/`) to diff existing tests against the current spec and scaffold the matrix — it automates steps 1–2, and also covers running and auditing the suite more broadly.
 
+## Generated auth-enforcement suite (do not hand-edit)
+
+`tests/common/auth_enforcement.robot` is **generated** by `scripts/generate_auth_enforcement_suite.py`
+from every module's `x-labs64-auth`, one case per protected operation, each calling the operation at
+the gateway edge with no credentials and asserting 401/403. Regenerate and commit after any spec
+change; CI runs the generator with `--check` and fails when the committed suite has drifted — an
+operation that declares `x-labs64-auth` without a generated test is precisely the gap this catches.
+
+This is the edge half of the guarantee. Each backend separately proves it fails closed in its own
+`AuthEnforcementContractTest` (built on `AuthEnforcementContract` + `ModulePepHarness` in commons).
+Both layers must hold: the edge is where authorization is enforced, the backend is what survives a
+misrouted request. Don't hand-write edge cases that duplicate the generated ones — extend the
+generator, or add the *scope*-level cases (wrong scope, right scope) that it deliberately leaves to
+each module's `authz.robot`.
+
 ## Running tests
 
 `just` wraps the `robot` invocations documented in `README.md` (venv setup, tag filters, output

@@ -5,6 +5,8 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 3 * * *'   # nightly full regression
+  release:
+    types: [created]      # item 12: full regression is also a release gate, not just nightly
 
 env:
   # All tests run through the gateway edge, never straight to a backend port.
@@ -14,6 +16,7 @@ env:
   GATEWAY_BASE_URL: ${{ vars.GATEWAY_BASE_URL || 'http://gateway.localhost' }}
   AUDITFLOW_BASE_URL: ${{ vars.AUDITFLOW_BASE_URL || 'http://gateway.localhost/auditflow/api/v1' }}
   PAYMENT_GATEWAY_BASE_URL: ${{ vars.PAYMENT_GATEWAY_BASE_URL || 'http://gateway.localhost/payment-gateway/api/v1' }}
+  CHECKOUT_BASE_URL: ${{ vars.CHECKOUT_BASE_URL || 'http://gateway.localhost/checkout/api/v1' }}
   MOCK_OIDC_BASE_URL: ${{ vars.MOCK_OIDC_BASE_URL || 'http://mock-oidc.localhost' }}
   OIDC_ISSUER_ID: ${{ vars.OIDC_ISSUER_ID || 'labs64io' }}
   # Optional static override for environments where mock-oidc isn't reachable.
@@ -56,10 +59,30 @@ jobs:
           name: smoke-report-${{ matrix.service }}
           path: results/${{ matrix.service }}
 
+  auth-enforcement-coverage:
+    name: Auth Enforcement Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Install Robot Framework and libraries
+        run: pip install -r requirements.txt
+
+      - name: Every protected operation has a generated edge test
+        # Roadmap item 2, step 3: an operation that declares x-labs64-auth without a
+        # generated test must break the build — silence must not read as success.
+        # Regenerates from the module specs and fails if the committed suite differs.
+        run: python scripts/generate_auth_enforcement_suite.py --check
+
   p0-blockers:
     name: P0 Blocker Tests
     runs-on: ubuntu-latest
-    needs: smoke
+    needs: [smoke, auth-enforcement-coverage]
     steps:
       - uses: actions/checkout@v4
 
@@ -87,9 +110,14 @@ jobs:
           name: p0-blocker-report
           path: results/p0-blockers
 
+  # Runs nightly AND on every GitHub release (item 12's "green in CI on every
+  # release" — a scheduled-only run would not gate an actual release). Includes
+  # the six item-12 suites (pipeline_routing, condition_operators, redaction,
+  # dlq_replay, quota_enforcement, secret_ref_resolution) via the `regression`
+  # tag, alongside every other `regression`-tagged case.
   nightly-regression:
-    name: Nightly Full Regression
-    if: github.event_name == 'schedule'
+    name: Full Regression (nightly + release gate)
+    if: github.event_name == 'schedule' || github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -91,6 +91,24 @@ Response Status Should Be
     Should Be Equal As Integers    ${response.status_code}    ${expected_status}
     ...    msg=Expected HTTP ${expected_status} but received ${response.status_code}. Body: ${response.text}
 
+Protected Operation Should Reject Anonymous Access
+    [Documentation]    Call ``${method} ${path}`` at the gateway edge with no credentials and
+    ...                assert it is refused (401 or 403). Used by the generated
+    ...                ``tests/common/auth_enforcement.robot`` suite, which derives its cases
+    ...                from every operation declaring ``x-labs64-auth`` in a module's OpenAPI
+    ...                spec — so an operation the contract advertises as protected but the edge
+    ...                serves anonymously fails here.
+    ...
+    ...                A 404 is a failure, not a pass: it means the request never reached an
+    ...                enforcement point, which is a routing gap rather than proof of
+    ...                protection.
+    [Arguments]    ${base_url}    ${method}    ${path}
+    Create Unauthenticated Session    auth-enforcement    ${base_url}
+    ${response}=    Run Keyword    ${method} On Session    auth-enforcement    ${path}    expected_status=any
+    ${rejected}=    Evaluate    ${response.status_code} in (401, 403)
+    Should Be True    ${rejected}
+    ...    msg=${method} ${path} declares x-labs64-auth but an unauthenticated call to ${base_url}${path} returned ${response.status_code}. Expected 401 or 403 — the contract advertises protection the edge does not enforce. Body: ${response.text}
+
 Response Should Contain Key
     [Documentation]    Assert that a JSON response body contains a top-level key.
     [Arguments]    ${response}    ${key}
