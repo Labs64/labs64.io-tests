@@ -13,12 +13,12 @@
 #   GATEWAY_BASE_URL=https://staging.labs64.io just smoke
 # See resources/common.resource for the full list of overridable variables.
 
-# `--console none` disables Robot's own console writer entirely (all output modes —
-# `verbose` and `dotted` alike — write to stdout and crash with "OSError: [Errno 5] Input/output
-# error" if stdout is ever closed/broken mid-run, which happens under some IDE task runners and
-# other non-plain-TTY invocations). `_run` below prints its own results pointer afterward, since
-# Robot itself now prints nothing; the full detail always lives in results/log.html regardless.
-ROBOT := ".venv/bin/robot --console none"
+# Robot console output mode (dotted, verbose, quiet, none).
+# Note: If tests crash with "OSError: [Errno 5] Input/output error" under an IDE
+# task runner, it means stdout was closed mid-run. Workaround: run with `console=none`
+# (e.g., `just smoke console=none`).
+console := "verbose"
+ROBOT := ".venv/bin/robot --console " + console
 ALL_TESTS := "tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/"
 
 # List available recipes
