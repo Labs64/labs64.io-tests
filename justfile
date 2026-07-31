@@ -60,8 +60,11 @@ _run *args: install
     # stdout mid-run, which can make even a plain echo fail with EIO. That must never flip the
     # real result above — $status was captured before any of this, and is what gets returned.
     echo "$summary" 2>/dev/null || true
-    echo "Results: results/report.html (summary) | results/log.html (detail) | results/summary.txt (plain text)" 2>/dev/null || true
-    open results/report.html 2>/dev/null || true
+    echo "Results:" 2>/dev/null || true
+    echo "  Summary: file://$(pwd)/results/report.html" 2>/dev/null || true
+    echo "  Detail:  file://$(pwd)/results/log.html" 2>/dev/null || true
+    echo "  (Use 'labs64.io-tests::just report' or 'labs64.io-tests::just log' to serve these in a browser)" 2>/dev/null || true
+    if [ "$(uname)" = "Darwin" ]; then open results/report.html 2>/dev/null || true; fi
     exit $status
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -119,13 +122,15 @@ test: all
 # Results
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Open the most recent run's HTML report (pass/fail summary)
+# Serve the most recent run's HTML report (pass/fail summary) on localhost:8000
 report:
-    open results/report.html
+    @echo "Serving report at http://localhost:8000/report.html (Press Ctrl+C to stop)"
+    python3 -m http.server -d results 8000
 
-# Open the most recent run's HTML log — full request/response detail per keyword, read first on failure
+# Serve the most recent run's HTML log — full request/response detail per keyword, read first on failure
 log:
-    open results/log.html
+    @echo "Serving log at http://localhost:8000/log.html (Press Ctrl+C to stop)"
+    python3 -m http.server -d results 8000
 
 # Remove generated Robot Framework output
 clean:
