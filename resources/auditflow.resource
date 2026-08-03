@@ -198,6 +198,27 @@ Replay DLQ
     ${response}=    POST On Session    ${alias}    /actuator/dlq/${tenant_id}    expected_status=200
     RETURN    ${response.json()}
 
+Purge DLQ
+    [Documentation]    DELETE /actuator/dlq/<tenantId> — discard this tenant's DLQ messages
+    ...                outright (no replay). Tenant-scoped like inspect/replay: another tenant's
+    ...                messages are never touched.
+    [Arguments]    ${alias}    ${tenant_id}
+    ${response}=    DELETE On Session    ${alias}    /actuator/dlq/${tenant_id}    expected_status=200
+    RETURN    ${response.json()}
+
+Create Regression Session With Empty DLQ
+    [Documentation]    Suite setup for every suite that asserts on t_regression's DLQ *count*.
+    ...                Those assertions are before/after deltas, so they are only sound when
+    ...                nothing else is queued or in flight. t_regression's pipelines are
+    ...                deliberately-failing probes and nothing ever drains them, so without this
+    ...                the backlog grows every run until (a) a replay's round-trip outruns its
+    ...                settle window and (b) the stragglers land inside the next suite's
+    ...                measurement window — which is exactly how dlq_replay and pipeline_routing
+    ...                started failing together. Purging at setup bounds the backlog to what the
+    ...                suite itself produces.
+    Create Regression Session
+    Purge DLQ    ${AUDITFLOW_REGRESSION_SESSION}    t_regression
+
 Build Oversized Audit Event
     [Documentation]    Return an audit-event dict with a payload exceeding 2MB to test size limits.
     [Arguments]    ${correlation_id}
