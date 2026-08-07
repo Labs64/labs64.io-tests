@@ -53,7 +53,7 @@ jobs:
             --report report.html \
             ../labs64.io-${{ matrix.service }}/tests/e2e/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: smoke-report-${{ matrix.service }}
@@ -104,7 +104,7 @@ jobs:
             --report report.html \
             tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: p0-blocker-report
@@ -141,7 +141,7 @@ jobs:
             --report report.html \
             tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: nightly-regression-report
