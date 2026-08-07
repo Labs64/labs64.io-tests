@@ -33,7 +33,7 @@ jobs:
           - auditflow
           - payment-gateway
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -63,7 +63,7 @@ jobs:
     name: Auth Enforcement Coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -84,7 +84,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [smoke, auth-enforcement-coverage]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
@@ -120,7 +120,7 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v5
         with:
