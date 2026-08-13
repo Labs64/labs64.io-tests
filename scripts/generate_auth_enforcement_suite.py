@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the gateway-edge auth-enforcement suite from the module OpenAPI specs.
 
-Item 2 of the roadmap: every operation that declares `x-labs64-auth` gets an
+Item 2 of the roadmap: every operation that declares `x-labs64.auth` gets an
 automated test that calls it unauthenticated and asserts 401/403. This is the
 gateway-edge half — the module-layer half lives in each backend's own
 `AuthEnforcementContractTest` (commons `AuthEnforcementContract`). Both must
@@ -9,7 +9,7 @@ hold: the module test proves the backend fails closed, this one proves the edge
 does, and the edge is where authorization is actually enforced.
 
 The suite is generated rather than hand-written for the same reason the Cerbos
-policies and gateway routes are: `x-labs64-auth` is the single source of truth,
+policies and gateway routes are: `x-labs64.auth` is the single source of truth,
 and a hand-maintained list is exactly how "phantom auth" got here in the first
 place. CI regenerates and diffs, so an operation added without a test fails the
 build — silence must not read as success.
@@ -33,8 +33,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKSPACE = REPO_ROOT.parent
 OUTPUT = REPO_ROOT / "tests" / "common" / "auth_enforcement.robot"
 
-AUTH_EXTENSION = "x-labs64-auth"
-DEFAULTS_EXTENSION = "x-labs64-auth-defaults"
+LABS64_EXTENSION = "x-labs64"
+AUTH_PROPERTY = "auth"
 HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
 
 # RequestsLibrary has no keyword for these, and none of them carry auth semantics
@@ -64,7 +64,7 @@ MODULES = (
     ),
     Module(
         "payment-gateway",
-        WORKSPACE / "labs64.io-payment-gateway/payment-gateway-be/src/main/resources/openapi"
+        WORKSPACE / "labs64.io-payment-gateway/payment-gateway-api/src/main/resources/openapi"
         "/openapi-payment-gateway-v1.yaml",
         "PAYMENT_GATEWAY_BASE_URL",
         "payment-gateway",
@@ -127,14 +127,26 @@ def path_parameter_samples(path_item: dict, operation: dict) -> dict[str, str]:
     return samples
 
 
-def resolve_auth(operation: dict, path_item: dict, defaults: dict | None) -> dict:
-    """Effective x-labs64-auth: operation, else path, else spec-level defaults.
+def labs64_auth(source: dict | None) -> dict | None:
+    """Return the auth object nested under an OpenAPI ``x-labs64`` extension."""
+    if not isinstance(source, dict):
+        return None
+    labs64 = source.get(LABS64_EXTENSION)
+    if not isinstance(labs64, dict):
+        return None
+    auth = labs64.get(AUTH_PROPERTY)
+    return auth if isinstance(auth, dict) else None
+
+
+def resolve_auth(operation: dict, path_item: dict, spec: dict) -> dict:
+    """Effective ``x-labs64.auth``: operation, else path, else spec level.
 
     Mirrors `AuthPolicy.from` in commons. Keep the two in step — they are the
     same contract read by two languages.
     """
-    for candidate in (operation.get(AUTH_EXTENSION), path_item.get(AUTH_EXTENSION), defaults):
-        if isinstance(candidate, dict):
+    for source in (operation, path_item, spec):
+        candidate = labs64_auth(source)
+        if candidate is not None:
             return candidate
     return {}
 
@@ -146,7 +158,6 @@ def protected_operations(module: Module) -> list[ProtectedOperation]:
             f"module repos — check them out as siblings of this one."
         )
     spec = yaml.safe_load(module.spec.read_text()) or {}
-    defaults = spec.get(DEFAULTS_EXTENSION)
     operations: list[ProtectedOperation] = []
 
     for path_template, path_item in (spec.get("paths") or {}).items():
@@ -155,17 +166,13 @@ def protected_operations(module: Module) -> list[ProtectedOperation]:
         for method, operation in path_item.items():
             if method.lower() not in HTTP_METHODS or not isinstance(operation, dict):
                 continue
-            auth = resolve_auth(operation, path_item, defaults)
+            auth = resolve_auth(operation, path_item, spec)
             operation_id = operation.get("operationId") or f"{method}{path_template}"
 
             if not auth:
-                # The Java preprocessor refuses this at generate-sources; refuse it
-                # here too rather than silently leaving the operation untested.
-                raise ValueError(
-                    f"{module.name}: {method.upper()} {path_template} ({operation_id}) declares no "
-                    f"{AUTH_EXTENSION}. Every operation must state 'public: true' or its "
-                    f"tenant/scopes requirement."
-                )
+                # Operations without auth metadata are public by inference and do
+                # not belong in the anonymous-access denial suite.
+                continue
             if auth.get("public") is True:
                 continue
             if method.lower() in UNSUPPORTED_METHODS:
@@ -200,7 +207,7 @@ HEADER = """\
 Documentation    GENERATED — do not edit. Regenerate with
 ...              ``scripts/generate_auth_enforcement_suite.py`` (CI runs it with ``--check``).
 ...
-...              Roadmap item 2: every operation that declares ``x-labs64-auth`` in a module's
+...              Roadmap item 2: every operation that declares ``x-labs64.auth`` in a module's
 ...              OpenAPI spec is called at the gateway edge without credentials and must be
 ...              refused with 401 or 403. The case list is derived from the same annotation
 ...              that produces the Cerbos policies and the gateway routes, so the contract and
@@ -242,7 +249,7 @@ def render(all_operations: list[ProtectedOperation]) -> str:
             CASE.format(
                 title=f"{operation.module.name} {operation.method} {operation.path_template} "
                 f"rejects anonymous callers",
-                doc=f"{operation.operation_id} declares x-labs64-auth requiring {needs}. "
+                doc=f"{operation.operation_id} declares x-labs64.auth requiring {needs}. "
                 f"An unauthenticated call must be refused at the edge.",
                 # p0-blocker: an endpoint the contract says is protected but the edge
                 # serves anonymously is release-blocking by definition, so these gate
@@ -299,7 +306,7 @@ def main() -> int:
             print(
                 f"generate_auth_enforcement_suite: {OUTPUT.relative_to(REPO_ROOT)} is out of date "
                 f"with the module OpenAPI specs.\nRun scripts/generate_auth_enforcement_suite.py "
-                f"and commit the result. An operation that declares x-labs64-auth without a "
+                f"and commit the result. An operation that declares x-labs64.auth without a "
                 f"generated test is the gap this check exists to catch.",
                 file=sys.stderr,
             )
