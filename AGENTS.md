@@ -70,12 +70,11 @@ See `README.md` for the full table. The tags that matter most when writing a new
 
 ## Local-only pod-log corroboration (explicit exception)
 
-`tests/auditflow/authz.robot` has a handful of test cases tagged `local-k8s-only` that
-additionally corroborate an HTTP-status assertion against `kubectl logs` (the authproxy's cerbos
-decision log, and the AuditFlow backend's delivery log via `correlationId`). This is a
-deliberate, narrow exception to "Gateway edge only" above, added because the auth/authz path has
-two effects a pure HTTP client can't see: whether the *edge* actually made the decision it
-appears to have made, and whether an allowed request was actually *delivered* past the gateway.
+Tests tagged `local-k8s-only` may corroborate an HTTP assertion against `kubectl logs` in two
+narrow cases: auth/authz enforcement, and a cross-service delivery probe where the receiving
+service deliberately has no read API. Current examples are the authproxy's cerbos decision log
+and AuditFlow delivery identified by a caller-supplied `correlationId`. This is an explicit
+exception to "Gateway edge only" above for effects a pure HTTP client cannot observe.
 
 Rules for this exception, enforced in `resources/common.resource` / `resources/auditflow.resource`:
 
@@ -84,12 +83,16 @@ Rules for this exception, enforced in `resources/common.resource` / `resources/a
   (`k3d-labs64io`) — so CI (no kubectl context) always skips them silently.
 - They are corroborating, never primary — the paired HTTP-status test case is still the actual
   contract check; the log assertion adds confidence, it doesn't replace the assertion.
-- Don't extend this pattern to ordinary functional tests. It exists only for the auth/authz path,
-  where the enforcement point and delivery effect are otherwise invisible to the suite.
+- A cross-service delivery probe must use a unique correlation identifier and polling, remain
+  `local-k8s-only`, and assert only the receiving service's processing log. It must not inspect
+  RabbitMQ, a database, or another implementation detail.
+- Don't extend this pattern to ordinary functional tests. It exists only where a load-bearing
+  enforcement or delivery effect is otherwise invisible to a black-box client.
 
 ## What NOT to do
 
 - Don't hardcode credentials — use `Get OIDC Token`/`Create Session With Scope`, or the `API_TOKEN` env var as a fallback.
-- Don't assert against RabbitMQ, kubectl, or any internal infrastructure — API edge only.
+- Don't assert against RabbitMQ, a database, or internal infrastructure. The only exception is
+  the narrowly scoped `local-k8s-only` log corroboration described above.
 - Don't add a query/store test against AuditFlow's own API — it doesn't have one, and never will (settled architecture decision).
 - Don't scaffold coverage for every CRUD permutation of every endpoint up front — start with smoke + authz, add functional regression only for flows that have actually broken or are genuinely load-bearing (e.g. the payment-provider lifecycle).

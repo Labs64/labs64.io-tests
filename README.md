@@ -8,7 +8,10 @@ Integration & Regression Test Suite for the [Labs64.IO Ecosystem](https://labs64
 
 Black-box API-edge regression suite for the [Labs64.IO](https://labs64.io) platform, built with [Robot Framework](https://robotframework.org/) and [`robotframework-requests`](https://github.com/MarketSquare/robotframework-requests).
 
-Every test asserts through the **gateway edge** (Traefik + authproxy) only — never a backend port directly, no RabbitMQ/kubectl/internal infrastructure access. This matches how an ISV, AI agent, or browser actually experiences the platform, keeps the suite's secrets surface minimal, and is the only vantage point from which cerbos authorization is actually enforced (a backend hit directly would skip it).
+Every test exercises the **gateway edge** (Traefik + authproxy), never a backend port directly.
+Explicitly tagged `local-k8s-only` probes may additionally corroborate an otherwise unobservable
+auth or cross-service delivery effect through correlation-scoped pod logs; they never inspect
+RabbitMQ or a database. See `AGENTS.md` for the narrow exception rules.
 
 Covers `auditflow` and `payment-gateway` today. See `AGENTS.md` for how to extend this to another module.
 
@@ -22,6 +25,9 @@ labs64.io-tests/
 │   ├── auditflow.resource          # AuditFlow-specific keywords (POST /audit/publish)
 │   └── payment_gateway.resource    # Payment Gateway-specific keywords
 ├── tests/
+│   ├── common/
+│   │   └── e2e/
+│   │       └── payment_auditflow.robot # PG -> AuditFlow local-k8s delivery probe
 │   ├── auditflow/
 │   │   ├── smoke.robot             # happy path + 400 validation
 │   │   └── authz.robot             # auth/authz matrix — see P0 Defect Coverage below
@@ -40,7 +46,7 @@ labs64.io-tests/
 | `smoke` | Fast critical-path only | Every PR |
 | `regression` | Full functional coverage per service | Nightly + pre-release |
 | `contract` | Mirrors a path covered by Schemathesis | Informational |
-| `e2e` | Cross-service flows | Pre-release only |
+| `e2e` | Cross-service flows | Targeted / pre-release |
 | `critical` | Failure blocks a release | Always gating |
 | `p0-blocker` | Guards a known-critical defect class | Always gating, never skipped |
 | `flaky` | Quarantined — non-blocking | Nightly, excluded from gating |
@@ -48,12 +54,11 @@ labs64.io-tests/
 | `tenant-isolation` | Cross-tenant / cross-scope isolation scenarios | — |
 | `error-handling` | Error path / negative testing | — |
 
-> `contract`, `e2e`, and `flaky` are **reserved for future use** — no test currently carries
+> `contract` and `flaky` are **reserved for future use** — no test currently carries
 > them, and that's not drift. `contract` is earmarked for tests that mirror a path Schemathesis
-> already covers (informational, not gating); `e2e` for cross-service flows spanning more than
-> one module; `flaky` for quarantining a genuinely flaky case without deleting its coverage.
-> They exist in the taxonomy so a test can adopt one the moment it needs it, without a README
-> update first.
+> already covers (informational, not gating); `flaky` is for quarantining a genuinely flaky case
+> without deleting its coverage. The `e2e` tag is active for cross-service flows spanning more
+> than one module; environment-specific probes also carry a tag such as `local-k8s-only`.
 
 ## Setup
 
