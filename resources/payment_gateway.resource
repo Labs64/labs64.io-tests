@@ -106,3 +106,53 @@ Create Payment
     ${body}=    Create Dictionary    amount=100    currency=USD
     ${response}=    POST On Session    ${alias}    /payments    json=${body}    expected_status=any
     RETURN    ${response}
+
+Ensure Active Noop Payment Provider
+    [Documentation]    Return an active noop provider for the session tenant. Reuse an existing
+    ...                active provider or create one without modifying inactive tenant fixtures.
+    ...                The session must carry payment-provider:read and payment-provider:write.
+    [Arguments]    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    ${list_response}=    List Payment Providers    ${alias}
+    Response Status Should Be    ${list_response}    200
+    ${providers}=    Get From Dictionary    ${list_response.json()}    items
+    FOR    ${provider}    IN    @{providers}
+        ${is_active_noop}=    Evaluate    $provider.get("provider") == "noop" and $provider.get("active") is True
+        IF    ${is_active_noop}
+            RETURN    ${provider}[id]
+        END
+    END
+    ${create_response}=    Create Payment Provider    ${alias}
+    Response Status Should Be    ${create_response}    200
+    RETURN    ${create_response.json()}[id]
+
+Build Valid Payment Request
+    [Documentation]    Build the smallest valid CreatePaymentRequest defined by the PG OpenAPI contract.
+    [Arguments]    ${payment_provider_id}
+    ${item}=    Create Dictionary
+    ...    name=AuditFlow delivery probe
+    ...    price=${100}
+    ...    quantity=${1}
+    ${items}=    Create List    ${item}
+    ${purchase_order}=    Create Dictionary
+    ...    currency=EUR
+    ...    items=${items}
+    ...    grossAmount=${100}
+    ${billing_info}=    Create Dictionary    email=auditflow-e2e@labs64.io
+    ${request}=    Create Dictionary
+    ...    paymentProviderId=${payment_provider_id}
+    ...    purchaseOrder=${purchase_order}
+    ...    billingInfo=${billing_info}
+    RETURN    ${request}
+
+Create Payment With Correlation Id
+    [Documentation]    POST a valid payment request with a caller-controlled correlation ID.
+    [Arguments]    ${payment_provider_id}    ${correlation_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    ${body}=    Build Valid Payment Request    ${payment_provider_id}
+    ${headers}=    Create Dictionary    ${CORRELATION_ID_HEADER}=${correlation_id}
+    ${response}=    POST On Session
+    ...    ${alias}
+    ...    /payments
+    ...    json=${body}
+    ...    headers=${headers}
+    ...    expected_status=any
+    RETURN    ${response}

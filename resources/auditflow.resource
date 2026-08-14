@@ -41,10 +41,13 @@ Create Unauthenticated AuditFlow Session
 Publish Audit Event
     [Documentation]    POST an audit-event object to /audit/publish on the given session alias.
     [Arguments]    ${event}    ${alias}=${AUDITFLOW_SESSION_ALIAS}
+    ${correlation_id}=    Get From Dictionary    ${event}    correlationId    ${EMPTY}
+    ${headers}=    Create Dictionary    ${CORRELATION_ID_HEADER}=${correlation_id}
     ${response}=    POST On Session
     ...    ${alias}
     ...    /audit/publish
     ...    json=${event}
+    ...    headers=${headers}
     ...    expected_status=any
     RETURN    ${response}
 
@@ -96,21 +99,24 @@ Authproxy Logs Should Show Authz Decision For Publish
 
 AuditFlow Backend Logs Should Contain Correlation Id
     [Documentation]    Local-k8s-only. Assert the AuditFlow backend's recent logs contain the
-    ...                given correlation id — proving the event was actually delivered past the
-    ...                gateway and processed by the pipeline, not just allowed at the edge.
+    ...                successful publish message for the given correlation id — proving the
+    ...                event was delivered past the gateway and handed to the output binding,
+    ...                not merely accepted by authz or request logging.
     ...                Retries briefly: pipeline processing is asynchronous (RabbitMQ) relative
     ...                to the synchronous HTTP 200.
     [Arguments]    ${correlation_id}    ${since}=90s
     Wait Until Keyword Succeeds    10x    500ms
-    ...    Pod Logs Should Contain Correlation Id    ${correlation_id}    ${since}
+    ...    Pod Logs Should Confirm Published Event    ${correlation_id}    ${since}
 
-Pod Logs Should Contain Correlation Id
+Pod Logs Should Confirm Published Event
     [Documentation]    Single-attempt helper for `AuditFlow Backend Logs Should Contain
-    ...                Correlation Id` — see that keyword for the retry wrapper.
+    ...                Correlation Id`. Filters by the unique correlation id before checking the
+    ...                publish-success message, so an earlier request/authz log cannot satisfy it.
     [Arguments]    ${correlation_id}    ${since}
     ${logs}=    Fetch Recent Pod Logs    ${LABS64IO_K8S_NAMESPACE}    ${AUDITFLOW_K8S_DEPLOYMENT}    ${since}
-    Should Contain    ${logs}    "correlationId": "${correlation_id}"
-    ...    msg=Expected correlationId '${correlation_id}' not found in AuditFlow backend logs — event may not have been delivered.
+    ${event_logs}=    Get Lines Containing String    ${logs}    ${correlation_id}
+    Should Contain    ${event_logs}    Audit event published successfully
+    ...    msg=AuditFlow did not confirm publishing the event with correlationId '${correlation_id}'.
 
 AuditFlow Backend Logs Should Not Mention Tenant
     [Documentation]    Local-k8s-only. Assert the AuditFlow backend's recent logs never mention
