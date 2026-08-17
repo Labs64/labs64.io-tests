@@ -102,10 +102,10 @@ AuditFlow Backend Logs Should Contain Correlation Id
     ...                successful publish message for the given correlation id — proving the
     ...                event was delivered past the gateway and handed to the output binding,
     ...                not merely accepted by authz or request logging.
-    ...                Retries briefly: pipeline processing is asynchronous (RabbitMQ) relative
-    ...                to the synchronous HTTP 200.
+    ...                Polls within a bounded window: the first service-to-service publication
+    ...                may initialize OAuth and authorization clients before asynchronous delivery.
     [Arguments]    ${correlation_id}    ${since}=90s
-    Wait Until Keyword Succeeds    10x    500ms
+    Wait Until Keyword Succeeds    20s    1s
     ...    Pod Logs Should Confirm Published Event    ${correlation_id}    ${since}
 
 Pod Logs Should Confirm Published Event
