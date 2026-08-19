@@ -36,7 +36,7 @@ labs64.io-tests/
 │       ├── payment_providers.robot # create/read/update/delete lifecycle (noop PSP)
 │       └── authz.robot             # auth/authz scope matrix
 └── .github/workflows/
-    └── regression-suite.yml        # GitHub Actions CI workflow
+    └── labs64io-regression-suite.yml        # GitHub Actions CI workflow
 ```
 
 ## Tag Taxonomy
@@ -122,7 +122,7 @@ If `mock-oidc` isn't reachable in your target environment, set `API_TOKEN` to a 
 
 ## CI
 
-The GitHub Actions workflow (`.github/workflows/regression-suite.yml`) runs:
+The GitHub Actions workflow (`.github/workflows/labs64io-regression-suite.yml`) runs:
 
 - **On every PR:** smoke tests per service in parallel + P0 blocker tests
 - **Nightly:** full regression suite across all services, excluding `flaky`

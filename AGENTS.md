@@ -65,7 +65,7 @@ See `README.md` for the full table. The tags that matter most when writing a new
 1. Confirm the module has a real OpenAPI spec and check its `AGENTS.md` for base path / port conventions.
 2. Add `resources/<module>.resource` following the pattern in `auditflow.resource` or `payment_gateway.resource` (session helpers + one keyword per operation you'll test).
 3. Add `tests/<module>/smoke.robot` and `tests/<module>/authz.robot`.
-4. Add the module to the CI matrix in `.github/workflows/regression-suite.yml`.
+4. Add the module to the CI matrix in `.github/workflows/labs64io-regression-suite.yml`.
 5. Add the module to `README.md`'s repository structure and P0 coverage table if applicable.
 
 ## Local-only pod-log corroboration (explicit exception)

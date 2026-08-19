@@ -68,7 +68,7 @@ _run *args: install
     exit $status
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CI-shaped runs — mirrors .github/workflows/regression-suite.yml
+# CI-shaped runs — mirrors .github/workflows/labs64io-regression-suite.yml
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Fast, PR-gating subset across all modules (keep this one fast — see AGENTS.md)
