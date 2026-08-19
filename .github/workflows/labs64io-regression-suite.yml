@@ -1,4 +1,4 @@
-name: Labs64.IO - Regression Tests
+name: Labs64.IO - Tests - Regression Suite
 
 on:
   pull_request:
