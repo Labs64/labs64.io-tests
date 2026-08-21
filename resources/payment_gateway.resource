@@ -13,6 +13,7 @@ ${PAYMENT_PROVIDER_READ_SCOPE}       payment-provider:read
 ${PAYMENT_PROVIDER_WRITE_SCOPE}      payment-provider:write
 ${NOOP_PROVIDER}                     noop
 ${PAYMENT_GATEWAY_PROVIDERS_PATH}    /payment-gateway/api/v1/payment-providers
+${IDEMPOTENCY_KEY_HEADER}             Idempotency-Key
 
 # Local-k8s-only: Payment Gateway's own backend deployment name for kubectl log corroboration
 # (see AGENTS.md "Local-only pod-log corroboration"). Shared namespace/authproxy deployment
@@ -99,12 +100,41 @@ List Payments
     ${response}=    GET On Session    ${alias}    /payments    expected_status=any
     RETURN    ${response}
 
+Get Payment
+    [Documentation]    GET /payments/{id} — requires payment:read scope.
+    [Arguments]    ${payment_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    ${response}=    GET On Session    ${alias}    /payments/${payment_id}    expected_status=any
+    RETURN    ${response}
+
 Create Payment
     [Documentation]    POST /payments — requires payment:write scope.
     [Arguments]    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
     # Minimal stub body; authz checks occur before body validation in cerbos.
     ${body}=    Create Dictionary    amount=100    currency=USD
     ${response}=    POST On Session    ${alias}    /payments    json=${body}    expected_status=any
+    RETURN    ${response}
+
+Pay Payment
+    [Documentation]    POST /payments/{id}/pay — requires payment:pay scope.
+    [Arguments]    ${payment_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}    ${idempotency_key}=${EMPTY}
+    ${headers}=    Create Dictionary
+    IF    $idempotency_key
+        Set To Dictionary    ${headers}    ${IDEMPOTENCY_KEY_HEADER}=${idempotency_key}
+    END
+    ${response}=    POST On Session    ${alias}    /payments/${payment_id}/pay    headers=${headers}    expected_status=any
+    RETURN    ${response}
+
+List Payment Transactions
+    [Documentation]    GET /payment-transactions filtered by payment id — requires payment-transaction:read scope.
+    [Arguments]    ${payment_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    ${params}=    Create Dictionary    paymentId=${payment_id}
+    ${response}=    GET On Session    ${alias}    /payment-transactions    params=${params}    expected_status=any
+    RETURN    ${response}
+
+Get Payment Transaction
+    [Documentation]    GET /payment-transactions/{id} — requires payment-transaction:read scope.
+    [Arguments]    ${payment_transaction_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    ${response}=    GET On Session    ${alias}    /payment-transactions/${payment_transaction_id}    expected_status=any
     RETURN    ${response}
 
 Ensure Active Noop Payment Provider
@@ -129,7 +159,7 @@ Build Valid Payment Request
     [Documentation]    Build the smallest valid CreatePaymentRequest defined by the PG OpenAPI contract.
     [Arguments]    ${payment_provider_id}
     ${item}=    Create Dictionary
-    ...    name=AuditFlow delivery probe
+    ...    name=Payment Gateway E2E item
     ...    price=${100}
     ...    quantity=${1}
     ${items}=    Create List    ${item}
@@ -137,12 +167,19 @@ Build Valid Payment Request
     ...    currency=EUR
     ...    items=${items}
     ...    grossAmount=${100}
-    ${billing_info}=    Create Dictionary    email=auditflow-e2e@labs64.io
+    ${billing_info}=    Create Dictionary    email=payment-gateway-e2e@labs64.io
     ${request}=    Create Dictionary
     ...    paymentProviderId=${payment_provider_id}
     ...    purchaseOrder=${purchase_order}
     ...    billingInfo=${billing_info}
     RETURN    ${request}
+
+Create Valid Payment
+    [Documentation]    POST the smallest valid payment request defined by the PG OpenAPI contract.
+    [Arguments]    ${payment_provider_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    ${body}=    Build Valid Payment Request    ${payment_provider_id}
+    ${response}=    POST On Session    ${alias}    /payments    json=${body}    expected_status=any
+    RETURN    ${response}
 
 Create Payment With Correlation Id
     [Documentation]    POST a valid payment request with a caller-controlled correlation ID.
