@@ -21,6 +21,7 @@ results/
 # --- IDE / OS ---
 .idea/
 .vscode/
+.claude/
 .DS_Store
 *.swp
 *~
