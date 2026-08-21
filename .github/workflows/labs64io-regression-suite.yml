@@ -26,19 +26,36 @@ jobs:
   smoke:
     name: Smoke — ${{ matrix.service }}
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: labs64.io-tests
     strategy:
       fail-fast: false
       matrix:
         service:
           - auditflow
           - payment-gateway
+          - checkout
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out test suite
+        uses: actions/checkout@v7
+        with:
+          path: labs64.io-tests
+
+      # Module E2E suites live in their owning repositories and import shared
+      # resources from labs64.io-tests. Keep both repositories as siblings so
+      # those relative imports match the local workspace layout.
+      - name: Check out ${{ matrix.service }}
+        uses: actions/checkout@v7
+        with:
+          repository: Labs64/labs64.io-${{ matrix.service }}
+          path: labs64.io-${{ matrix.service }}
 
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: pip
+          cache-dependency-path: labs64.io-tests/requirements.txt
 
       - name: Install Robot Framework and libraries
         run: pip install -r requirements.txt
@@ -57,18 +74,43 @@ jobs:
         if: always()
         with:
           name: smoke-report-${{ matrix.service }}
-          path: results/${{ matrix.service }}
+          path: labs64.io-tests/results/${{ matrix.service }}
 
   auth-enforcement-coverage:
     name: Auth Enforcement Coverage
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: labs64.io-tests
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out test suite
+        uses: actions/checkout@v7
+        with:
+          path: labs64.io-tests
+
+      - name: Check out AuditFlow
+        uses: actions/checkout@v7
+        with:
+          repository: Labs64/labs64.io-auditflow
+          path: labs64.io-auditflow
+
+      - name: Check out Payment Gateway
+        uses: actions/checkout@v7
+        with:
+          repository: Labs64/labs64.io-payment-gateway
+          path: labs64.io-payment-gateway
+
+      - name: Check out Checkout
+        uses: actions/checkout@v7
+        with:
+          repository: Labs64/labs64.io-checkout
+          path: labs64.io-checkout
 
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: pip
+          cache-dependency-path: labs64.io-tests/requirements.txt
 
       - name: Install Robot Framework and libraries
         run: pip install -r requirements.txt
@@ -82,14 +124,39 @@ jobs:
   p0-blockers:
     name: P0 Blocker Tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: labs64.io-tests
     needs: [smoke, auth-enforcement-coverage]
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out test suite
+        uses: actions/checkout@v7
+        with:
+          path: labs64.io-tests
+
+      - name: Check out AuditFlow
+        uses: actions/checkout@v7
+        with:
+          repository: Labs64/labs64.io-auditflow
+          path: labs64.io-auditflow
+
+      - name: Check out Payment Gateway
+        uses: actions/checkout@v7
+        with:
+          repository: Labs64/labs64.io-payment-gateway
+          path: labs64.io-payment-gateway
+
+      - name: Check out Checkout
+        uses: actions/checkout@v7
+        with:
+          repository: Labs64/labs64.io-checkout
+          path: labs64.io-checkout
 
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: pip
+          cache-dependency-path: labs64.io-tests/requirements.txt
 
       - name: Install Robot Framework and libraries
         run: pip install -r requirements.txt
@@ -108,24 +175,49 @@ jobs:
         if: always()
         with:
           name: p0-blocker-report
-          path: results/p0-blockers
+          path: labs64.io-tests/results/p0-blockers
 
-  # Runs nightly AND on every GitHub release (item 12's "green in CI on every
-  # release" — a scheduled-only run would not gate an actual release). Includes
+  # Runs manually, nightly, and on every GitHub release (item 12's "green in CI
+  # on every release" — a scheduled-only run would not gate an actual release). Includes
   # the six item-12 suites (pipeline_routing, condition_operators, redaction,
   # dlq_replay, quota_enforcement, secret_ref_resolution) via the `regression`
   # tag, alongside every other `regression`-tagged case.
   nightly-regression:
     name: Full Regression (nightly + release gate)
-    if: github.event_name == 'schedule' || github.event_name == 'release'
+    if: github.event_name == 'schedule' || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: labs64.io-tests
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out test suite
+        uses: actions/checkout@v7
+        with:
+          path: labs64.io-tests
+
+      - name: Check out AuditFlow
+        uses: actions/checkout@v7
+        with:
+          repository: Labs64/labs64.io-auditflow
+          path: labs64.io-auditflow
+
+      - name: Check out Payment Gateway
+        uses: actions/checkout@v7
+        with:
+          repository: Labs64/labs64.io-payment-gateway
+          path: labs64.io-payment-gateway
+
+      - name: Check out Checkout
+        uses: actions/checkout@v7
+        with:
+          repository: Labs64/labs64.io-checkout
+          path: labs64.io-checkout
 
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: pip
+          cache-dependency-path: labs64.io-tests/requirements.txt
 
       - name: Install Robot Framework and libraries
         run: pip install -r requirements.txt
@@ -145,4 +237,4 @@ jobs:
         if: always()
         with:
           name: nightly-regression-report
-          path: results/nightly
+          path: labs64.io-tests/results/nightly
