@@ -172,7 +172,8 @@ Pay Payment
     IF    ${has_idempotency_key}
         Set To Dictionary    ${headers}    Idempotency-Key=${idempotency_key}
     END
-    ${response}=    POST On Session    ${alias}    /payments/${payment_id}/pay    headers=${headers}    expected_status=any
+    ${body}=    Create Dictionary
+    ${response}=    POST On Session    ${alias}    /payments/${payment_id}/pay    json=${body}    headers=${headers}    expected_status=any
     RETURN    ${response}
 
 Get Payment
@@ -190,5 +191,6 @@ Get Payment Transaction
 List Payment Transactions
     [Documentation]    GET /payment-transactions?paymentId={payment_id} — requires payment-transaction:read scope.
     [Arguments]    ${payment_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
-    ${response}=    GET On Session    ${alias}    /payment-transactions?paymentId=${payment_id}    expected_status=any
+    ${params}=    Create Dictionary    paymentId=${payment_id}
+    ${response}=    GET On Session    ${alias}    /payment-transactions    params=${params}    expected_status=any
     RETURN    ${response}
