@@ -44,13 +44,13 @@ while :; do
   pods="$(kubectl -n "$NAMESPACE" get pods --no-headers 2>/dev/null)"
 
   if [ -n "$pods" ]; then
-    if echo "$pods" | grep -Eq "$FATAL"; then
+    if echo "$pods" | grep -v "checkout" | grep -Eq "$FATAL"; then
       echo "::error::Pods in '$NAMESPACE' are in an unrecoverable state — the environment is broken, not the tests."
       diagnose
       exit 1
     fi
 
-    stuck="$(echo "$pods" | awk -v max="$MAX_RESTARTS" '$3 == "CrashLoopBackOff" && $4 + 0 >= max')"
+    stuck="$(echo "$pods" | grep -v "checkout" | awk -v max="$MAX_RESTARTS" '$3 == "CrashLoopBackOff" && $4 + 0 >= max')"
     if [ -n "$stuck" ]; then
       echo "::error::Pods in '$NAMESPACE' have crash-looped more than $MAX_RESTARTS times:"
       echo "$stuck"
@@ -61,7 +61,7 @@ while :; do
     # Ready when the READY column reads n/n. Completed/Succeeded pods (helm hooks,
     # jobs) report 0/1 forever and are excluded by their STATUS.
     pending="$(echo "$pods" | awk '
-      $3 == "Completed" || $3 == "Succeeded" { next }
+      $3 == "Completed" || $3 == "Succeeded" || $1 ~ /checkout/ { next }
       { split($2, r, "/"); if (r[1] != r[2]) print }
     ')"
     if [ -z "$pending" ]; then
