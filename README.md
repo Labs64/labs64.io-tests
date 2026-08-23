@@ -54,6 +54,7 @@ labs64.io-tests/
 | `critical` | Failure blocks a release | Always gating |
 | `p0-blocker` | Guards a known-critical defect class | Always gating, never skipped |
 | `flaky` | Quarantined — non-blocking | Nightly, excluded from gating |
+| `not-ga` | Targets a module whose images have never been published | Always excluded, kept for when it ships |
 | `auth` | Authentication / authorisation assertions | — |
 | `tenant-isolation` | Cross-tenant / cross-scope isolation scenarios | — |
 | `error-handling` | Error path / negative testing | — |
@@ -63,6 +64,15 @@ labs64.io-tests/
 > already covers (informational, not gating); `flaky` is for quarantining a genuinely flaky case
 > without deleting its coverage. The `e2e` tag is active for cross-service flows spanning more
 > than one module; environment-specific probes also carry a tag such as `local-k8s-only`.
+>
+> `not-ga` **is** currently carried — by every Checkout case, generated and hand-written. Its
+> images (`labs64/checkout`, `labs64/checkout-ui`) have never been published, so
+> `charts/labs64io-ecosystem` defaults `checkout.enabled` to `false` and no environment this
+> suite can reach ever serves it; a call would be a `503 no available server`, not a pass/fail
+> signal about the module itself. `smoke`/`p0`/`regression` all `--exclude not-ga` so that
+> structural fact doesn't read as a permanent regression. Remove the tag from a module's cases
+> (and the `not_ga=True` module entry in `scripts/generate_auth_enforcement_suite.py`, for the
+> generated suite) the same day its chart flips `enabled` to `true` by default.
 
 ## Setup
 
@@ -80,7 +90,7 @@ Fastest path: `just` (see `justfile` — `just smoke`, `just regression`, `just 
 
 **All smoke tests (fast, every PR):**
 ```bash
-robot --include smoke tests/
+robot --include smoke --exclude not-ga tests/
 ```
 
 **A single service:**
@@ -97,12 +107,12 @@ robot --test "Publish With Correct Scope Is Allowed" tests/auditflow/authz.robot
 
 **P0 blocker tests only (never skipped):**
 ```bash
-robot --include p0-blocker tests/
+robot --include p0-blocker --exclude not-ga tests/
 ```
 
-**Full regression, excluding flaky:**
+**Full regression, excluding flaky and not-yet-GA modules:**
 ```bash
-robot --include regression --exclude flaky tests/
+robot --include regression --exclude flaky --exclude not-ga tests/
 ```
 
 **Auth/authz matrix only, across all services:**
@@ -128,9 +138,11 @@ If `mock-oidc` isn't reachable in your target environment, set `API_TOKEN` to a 
 
 The GitHub Actions workflow (`.github/workflows/labs64io-regression-suite.yml`) runs:
 
-- **On every PR:** smoke tests per service in parallel + P0 blocker tests
-- **Nightly:** full regression suite across all services, excluding `flaky`
+- **On every PR:** smoke tests + P0 blocker tests, sequentially against one ephemeral k3d cluster provisioned by the job itself (`bash install.sh install` — the published ecosystem chart, same pattern as `labs64io-published-chart-e2e.yml` in `labs64.io-helm-charts`)
+- **Nightly:** full regression suite across all services, in its own equivalently-provisioned cluster, excluding `flaky` and `not-ga`
 - **Manual trigger:** `workflow_dispatch`
+
+Every job excludes `not-ga` — Checkout's images have never been published, so `install.sh` never deploys it into either cluster; see the `not-ga` entry in [Tag Taxonomy](#tag-taxonomy).
 
 ## P0 Defect Coverage
 

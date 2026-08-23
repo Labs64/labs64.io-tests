@@ -53,6 +53,13 @@ class Module:
     spec: Path
     base_url_var: str
     tag: str
+    # Set for a module whose images have never been published (see
+    # labs64.io-helm-charts/charts/labs64io-ecosystem/values.yaml), so `install.sh`
+    # never deploys it and any live call is structurally a 503, not an auth
+    # decision. Adds the `not-ga` tag so CI can `--exclude not-ga` instead of
+    # reporting a permanent false failure. Drop the flag the same day the
+    # chart's `checkout.enabled` default flips to true.
+    not_ga: bool = False
 
 
 MODULES = (
@@ -74,6 +81,7 @@ MODULES = (
         WORKSPACE / "labs64.io-checkout/checkout-be/src/main/resources/openapi/openapi-checkout-v1.yaml",
         "CHECKOUT_BASE_URL",
         "checkout",
+        not_ga=True,
     ),
 )
 
@@ -245,25 +253,30 @@ def render(all_operations: list[ProtectedOperation]) -> str:
             requirement.append("scope(s) " + ", ".join(operation.scopes))
         needs = " and ".join(requirement) if requirement else "authentication"
 
+        # p0-blocker: an endpoint the contract says is protected but the edge
+        # serves anonymously is release-blocking by definition, so these gate
+        # PRs rather than waiting for the nightly run. A not-GA module's images
+        # were never published, so the edge can only ever return 503 (no
+        # backend) — that's an environment fact, not an enforcement gap, so it
+        # gets `not-ga` instead so CI can exclude it without losing the case.
+        tags = [
+            operation.module.tag,
+            "regression",
+            "auth",
+            "auth-enforcement",
+            "p0-blocker",
+            "generated",
+        ]
+        if operation.module.not_ga:
+            tags.append("not-ga")
+
         body.append(
             CASE.format(
                 title=f"{operation.module.name} {operation.method} {operation.path_template} "
                 f"rejects anonymous callers",
                 doc=f"{operation.operation_id} declares x-labs64.auth requiring {needs}. "
                 f"An unauthenticated call must be refused at the edge.",
-                # p0-blocker: an endpoint the contract says is protected but the edge
-                # serves anonymously is release-blocking by definition, so these gate
-                # PRs rather than waiting for the nightly run.
-                tags="    ".join(
-                    [
-                        operation.module.tag,
-                        "regression",
-                        "auth",
-                        "auth-enforcement",
-                        "p0-blocker",
-                        "generated",
-                    ]
-                ),
+                tags="    ".join(tags),
                 base_url_var=operation.module.base_url_var,
                 method=operation.method,
                 path=operation.sample_path,

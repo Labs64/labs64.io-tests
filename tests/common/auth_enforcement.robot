@@ -86,56 +86,56 @@ payment-gateway GET /payment-transactions/{paymentTransactionId} rejects anonymo
 
 checkout GET /customers rejects anonymous callers
     [Documentation]    listCustomers declares x-labs64.auth requiring a tenant and scope(s) customer:read. An unauthenticated call must be refused at the edge.
-    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated
+    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated    not-ga
     Protected Operation Should Reject Anonymous Access    ${CHECKOUT_BASE_URL}    GET    /customers
 
 checkout POST /customers rejects anonymous callers
     [Documentation]    createCustomer declares x-labs64.auth requiring a tenant and scope(s) customer:write. An unauthenticated call must be refused at the edge.
-    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated
+    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated    not-ga
     Protected Operation Should Reject Anonymous Access    ${CHECKOUT_BASE_URL}    POST    /customers
 
 checkout GET /customers/{id} rejects anonymous callers
     [Documentation]    getCustomer declares x-labs64.auth requiring a tenant and scope(s) customer:read. An unauthenticated call must be refused at the edge.
-    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated
+    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated    not-ga
     Protected Operation Should Reject Anonymous Access    ${CHECKOUT_BASE_URL}    GET    /customers/sample
 
 checkout PATCH /customers/{id} rejects anonymous callers
     [Documentation]    updateCustomer declares x-labs64.auth requiring a tenant and scope(s) customer:write. An unauthenticated call must be refused at the edge.
-    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated
+    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated    not-ga
     Protected Operation Should Reject Anonymous Access    ${CHECKOUT_BASE_URL}    PATCH    /customers/sample
 
 checkout POST /purchase-orders rejects anonymous callers
     [Documentation]    createPurchaseOrder declares x-labs64.auth requiring a tenant and scope(s) purchase-order:write. An unauthenticated call must be refused at the edge.
-    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated
+    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated    not-ga
     Protected Operation Should Reject Anonymous Access    ${CHECKOUT_BASE_URL}    POST    /purchase-orders
 
 checkout GET /purchase-orders rejects anonymous callers
     [Documentation]    listPurchaseOrders declares x-labs64.auth requiring a tenant and scope(s) purchase-order:read. An unauthenticated call must be refused at the edge.
-    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated
+    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated    not-ga
     Protected Operation Should Reject Anonymous Access    ${CHECKOUT_BASE_URL}    GET    /purchase-orders
 
 checkout GET /purchase-orders/{id} rejects anonymous callers
     [Documentation]    getPurchaseOrder declares x-labs64.auth requiring a tenant and scope(s) purchase-order:read. An unauthenticated call must be refused at the edge.
-    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated
+    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated    not-ga
     Protected Operation Should Reject Anonymous Access    ${CHECKOUT_BASE_URL}    GET    /purchase-orders/sample
 
 checkout PATCH /purchase-orders/{id} rejects anonymous callers
     [Documentation]    updatePurchaseOrder declares x-labs64.auth requiring a tenant and scope(s) purchase-order:write. An unauthenticated call must be refused at the edge.
-    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated
+    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated    not-ga
     Protected Operation Should Reject Anonymous Access    ${CHECKOUT_BASE_URL}    PATCH    /purchase-orders/sample
 
 checkout POST /purchase-orders/{id}/checkout rejects anonymous callers
     [Documentation]    checkoutPurchaseOrder declares x-labs64.auth requiring a tenant and scope(s) purchase-order:checkout. An unauthenticated call must be refused at the edge.
-    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated
+    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated    not-ga
     Protected Operation Should Reject Anonymous Access    ${CHECKOUT_BASE_URL}    POST    /purchase-orders/sample/checkout
 
 checkout GET /checkout-transactions rejects anonymous callers
     [Documentation]    listCheckoutTransactions declares x-labs64.auth requiring a tenant and scope(s) checkout-transaction:read. An unauthenticated call must be refused at the edge.
-    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated
+    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated    not-ga
     Protected Operation Should Reject Anonymous Access    ${CHECKOUT_BASE_URL}    GET    /checkout-transactions
 
 checkout GET /checkout-transactions/{id} rejects anonymous callers
     [Documentation]    getCheckoutTransaction declares x-labs64.auth requiring a tenant and scope(s) checkout-transaction:read. An unauthenticated call must be refused at the edge.
-    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated
+    [Tags]    checkout    regression    auth    auth-enforcement    p0-blocker    generated    not-ga
     Protected Operation Should Reject Anonymous Access    ${CHECKOUT_BASE_URL}    GET    /checkout-transactions/sample
 

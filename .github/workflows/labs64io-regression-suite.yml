@@ -10,9 +10,13 @@ on:
 
 env:
   # All tests run through the gateway edge, never straight to a backend port.
-  # Authorization is enforced at the gateway. Override these via repository/environment
-  # variables to point at the stack under test (e.g. a self-hosted runner attached to the
-  # local k3d cluster). mock-oidc mints scoped M2M tokens on demand; see resources/common.resource.
+  # Authorization is enforced at the gateway. mock-oidc mints scoped M2M tokens on
+  # demand; see resources/common.resource. The defaults below match what the
+  # provisioning steps in each job stand up: a k3d cluster with its Traefik
+  # loadbalancer bound to host :80, so gateway.localhost/mock-oidc.localhost
+  # resolve (RFC 6761 .localhost) without any override. Set these repository/
+  # environment variables only to point at a different stack (e.g. a persistent
+  # shared cluster via a self-hosted runner) instead of the ephemeral one below.
   GATEWAY_BASE_URL: ${{ vars.GATEWAY_BASE_URL || 'http://gateway.localhost' }}
   AUDITFLOW_BASE_URL: ${{ vars.AUDITFLOW_BASE_URL || 'http://gateway.localhost/auditflow/api/v1' }}
   PAYMENT_GATEWAY_BASE_URL: ${{ vars.PAYMENT_GATEWAY_BASE_URL || 'http://gateway.localhost/payment-gateway/api/v1' }}
@@ -23,59 +27,6 @@ env:
   API_TOKEN: ${{ secrets.API_TOKEN }}
 
 jobs:
-  smoke:
-    name: Smoke — ${{ matrix.service }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: labs64.io-tests
-    strategy:
-      fail-fast: false
-      matrix:
-        service:
-          - auditflow
-          - payment-gateway
-          - checkout
-    steps:
-      - name: Check out test suite
-        uses: actions/checkout@v7
-        with:
-          path: labs64.io-tests
-
-      # Module E2E suites live in their owning repositories and import shared
-      # resources from labs64.io-tests. Keep both repositories as siblings so
-      # those relative imports match the local workspace layout.
-      - name: Check out ${{ matrix.service }}
-        uses: actions/checkout@v7
-        with:
-          repository: Labs64/labs64.io-${{ matrix.service }}
-          path: labs64.io-${{ matrix.service }}
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.13'
-          cache: pip
-          cache-dependency-path: labs64.io-tests/requirements.txt
-
-      - name: Install Robot Framework and libraries
-        run: pip install -r requirements.txt
-
-      - name: Smoke suite — ${{ matrix.service }}
-        run: |
-          robot \
-            --include smoke \
-            --outputdir results/${{ matrix.service }} \
-            --output output.xml \
-            --log log.html \
-            --report report.html \
-            ../labs64.io-${{ matrix.service }}/tests/e2e/
-
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: smoke-report-${{ matrix.service }}
-          path: labs64.io-tests/results/${{ matrix.service }}
-
   auth-enforcement-coverage:
     name: Auth Enforcement Coverage
     runs-on: ubuntu-latest
@@ -121,19 +72,33 @@ jobs:
         # Regenerates from the module specs and fails if the committed suite differs.
         run: python scripts/generate_auth_enforcement_suite.py --check
 
-  p0-blockers:
-    name: P0 Blocker Tests
+  # Smoke (all 3 modules) + P0-blockers, against one shared, ephemeral k3d cluster.
+  # Previously these were 4 separate jobs (a 3-way smoke matrix + p0-blockers),
+  # each expecting a `gateway.localhost` that nothing ever provisioned — every run
+  # failed in under a minute with connection-refused. This job provisions its own
+  # target the same way labs64.io-helm-charts/.github/workflows/
+  # labs64io-published-chart-e2e.yml already does (k3d + install.sh), then runs
+  # both robot suites sequentially against it, so the cost of standing up the
+  # cluster is paid once instead of four times.
+  pr-gate:
+    name: Smoke + P0 Blockers
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: labs64.io-tests
-    needs: [smoke, auth-enforcement-coverage]
+    env:
+      LABS64_PROFILE: quickstart
+      LABS64_YES: "1"
     steps:
       - name: Check out test suite
         uses: actions/checkout@v7
         with:
           path: labs64.io-tests
 
+      # Module E2E suites live in their owning repositories and import shared
+      # resources from labs64.io-tests. Keep both repositories as siblings so
+      # those relative imports match the local workspace layout.
       - name: Check out AuditFlow
         uses: actions/checkout@v7
         with:
@@ -152,6 +117,51 @@ jobs:
           repository: Labs64/labs64.io-checkout
           path: labs64.io-checkout
 
+      - name: Check out Helm charts (for install.sh)
+        uses: actions/checkout@v7
+        with:
+          repository: Labs64/labs64.io-helm-charts
+          path: labs64.io-helm-charts
+
+      # --- Provision the one cluster every suite below runs against ---
+      - name: Create k3d cluster
+        run: |
+          set -euo pipefail
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+          # Traefik is disabled in k3s: the umbrella brings its own. Bind its
+          # loadbalancer straight to host :80 so the plain gateway.localhost /
+          # mock-oidc.localhost base URLs above resolve with no port and no
+          # /etc/hosts edits.
+          k3d cluster create regression --agents 1 --wait \
+            -p "80:80@loadbalancer" --k3s-arg "--disable=traefik@server:0"
+
+      - uses: azure/setup-helm@v5.0.1
+        with:
+          version: "3.17.0"
+
+      - name: Install the published ecosystem chart
+        # No LABS64_CHART override: this suite exercises what a consumer actually
+        # gets (the published chart), not this repo's own working tree.
+        working-directory: labs64.io-helm-charts
+        run: bash install.sh install
+
+      - name: Assert no pod is stuck pulling
+        # Fail on a broken environment here, not forty unrelated robot failures below.
+        run: |
+          set -euo pipefail
+          kubectl -n labs64io get pods
+          if kubectl -n labs64io get pods \
+               -o jsonpath='{.items[*].status.containerStatuses[*].state.waiting.reason}' \
+             | tr ' ' '\n' | grep -qE 'ImagePullBackOff|ErrImagePull'; then
+            echo "::error::image pull failure — environment is broken, not the tests"
+            kubectl -n labs64io get pods -o wide
+            exit 1
+          fi
+
+      - name: Assert module health
+        run: helm test labs64io -n labs64io --timeout 10m
+
+      # --- Test suites: sequential against the shared cluster ---
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
@@ -161,10 +171,32 @@ jobs:
       - name: Install Robot Framework and libraries
         run: pip install -r requirements.txt
 
+      - name: Smoke suite — all modules
+        run: |
+          robot \
+            --include smoke \
+            --exclude not-ga \
+            --outputdir results/smoke \
+            --output output.xml \
+            --log log.html \
+            --report report.html \
+            tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: smoke-report
+          path: labs64.io-tests/results/smoke
+
       - name: P0-blocker regression tests
+        # Runs even if smoke had failures above — a failing smoke case is signal,
+        # not a crash, and p0-blockers is cheap once the cluster is already up.
+        # !cancelled() (not always()) so a manual run cancellation still skips it.
+        if: ${{ !cancelled() }}
         run: |
           robot \
             --include p0-blocker \
+            --exclude not-ga \
             --outputdir results/p0-blockers \
             --output output.xml \
             --log log.html \
@@ -177,18 +209,34 @@ jobs:
           name: p0-blocker-report
           path: labs64.io-tests/results/p0-blockers
 
+      - name: Dump diagnostics on failure
+        if: failure()
+        run: |
+          kubectl -n labs64io get events --sort-by=.lastTimestamp | tail -50 || true
+          kubectl -n labs64io describe pods | tail -120 || true
+
   # Runs manually, nightly, and on every GitHub release (item 12's "green in CI
   # on every release" — a scheduled-only run would not gate an actual release). Includes
   # the six item-12 suites (pipeline_routing, condition_operators, redaction,
   # dlq_replay, quota_enforcement, secret_ref_resolution) via the `regression`
   # tag, alongside every other `regression`-tagged case.
+  #
+  # Provisions its own cluster (same pattern as pr-gate above) rather than
+  # sharing pr-gate's — this job doesn't run on pull_request, so on the common
+  # PR path only pr-gate's single cluster is ever paid for; on schedule/release/
+  # workflow_dispatch both jobs run, so two clusters, down from the previous
+  # five (3 smoke + p0-blockers + nightly).
   nightly-regression:
     name: Full Regression (nightly + release gate)
     if: github.event_name == 'schedule' || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: labs64.io-tests
+    env:
+      LABS64_PROFILE: quickstart
+      LABS64_YES: "1"
     steps:
       - name: Check out test suite
         uses: actions/checkout@v7
@@ -212,6 +260,42 @@ jobs:
         with:
           repository: Labs64/labs64.io-checkout
           path: labs64.io-checkout
+
+      - name: Check out Helm charts (for install.sh)
+        uses: actions/checkout@v7
+        with:
+          repository: Labs64/labs64.io-helm-charts
+          path: labs64.io-helm-charts
+
+      - name: Create k3d cluster
+        run: |
+          set -euo pipefail
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+          k3d cluster create regression --agents 1 --wait \
+            -p "80:80@loadbalancer" --k3s-arg "--disable=traefik@server:0"
+
+      - uses: azure/setup-helm@v5.0.1
+        with:
+          version: "3.17.0"
+
+      - name: Install the published ecosystem chart
+        working-directory: labs64.io-helm-charts
+        run: bash install.sh install
+
+      - name: Assert no pod is stuck pulling
+        run: |
+          set -euo pipefail
+          kubectl -n labs64io get pods
+          if kubectl -n labs64io get pods \
+               -o jsonpath='{.items[*].status.containerStatuses[*].state.waiting.reason}' \
+             | tr ' ' '\n' | grep -qE 'ImagePullBackOff|ErrImagePull'; then
+            echo "::error::image pull failure — environment is broken, not the tests"
+            kubectl -n labs64io get pods -o wide
+            exit 1
+          fi
+
+      - name: Assert module health
+        run: helm test labs64io -n labs64io --timeout 10m
 
       - uses: actions/setup-python@v7
         with:
@@ -227,6 +311,7 @@ jobs:
           robot \
             --include regression \
             --exclude flaky \
+            --exclude not-ga \
             --outputdir results/nightly \
             --output output.xml \
             --log log.html \
@@ -238,3 +323,9 @@ jobs:
         with:
           name: nightly-regression-report
           path: labs64.io-tests/results/nightly
+
+      - name: Dump diagnostics on failure
+        if: failure()
+        run: |
+          kubectl -n labs64io get events --sort-by=.lastTimestamp | tail -50 || true
+          kubectl -n labs64io describe pods | tail -120 || true
