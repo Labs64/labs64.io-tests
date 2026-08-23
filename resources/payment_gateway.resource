@@ -156,3 +156,39 @@ Create Payment With Correlation Id
     ...    headers=${headers}
     ...    expected_status=any
     RETURN    ${response}
+
+Create Valid Payment
+    [Documentation]    POST /payments — requires payment:write scope. Creates a valid payment with a given provider.
+    [Arguments]    ${payment_provider_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    ${body}=    Build Valid Payment Request    ${payment_provider_id}
+    ${response}=    POST On Session    ${alias}    /payments    json=${body}    expected_status=any
+    RETURN    ${response}
+
+Pay Payment
+    [Documentation]    POST /payments/{payment_id}/pay — requires payment:pay scope.
+    [Arguments]    ${payment_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}    ${idempotency_key}=${NONE}
+    ${headers}=    Create Dictionary
+    ${has_idempotency_key}=    Evaluate    $idempotency_key is not None
+    IF    ${has_idempotency_key}
+        Set To Dictionary    ${headers}    Idempotency-Key=${idempotency_key}
+    END
+    ${response}=    POST On Session    ${alias}    /payments/${payment_id}/pay    headers=${headers}    expected_status=any
+    RETURN    ${response}
+
+Get Payment
+    [Documentation]    GET /payments/{payment_id} — requires payment:read scope.
+    [Arguments]    ${payment_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    ${response}=    GET On Session    ${alias}    /payments/${payment_id}    expected_status=any
+    RETURN    ${response}
+
+Get Payment Transaction
+    [Documentation]    GET /payment-transactions/{transaction_id} — requires payment-transaction:read scope.
+    [Arguments]    ${transaction_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    ${response}=    GET On Session    ${alias}    /payment-transactions/${transaction_id}    expected_status=any
+    RETURN    ${response}
+
+List Payment Transactions
+    [Documentation]    GET /payment-transactions?paymentId={payment_id} — requires payment-transaction:read scope.
+    [Arguments]    ${payment_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    ${response}=    GET On Session    ${alias}    /payment-transactions?paymentId=${payment_id}    expected_status=any
+    RETURN    ${response}
