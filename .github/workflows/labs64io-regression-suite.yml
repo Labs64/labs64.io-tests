@@ -352,8 +352,11 @@ jobs:
             | tar -xz -C /tmp helmfile
           sudo install -m 0755 /tmp/helmfile /usr/local/bin/helmfile
           # helmfile apply renders a diff before every release; without this plugin it
-          # fails on the first one.
-          helm plugin install --verify=false https://github.com/databus23/helm-diff
+          # fails on the first one. No --verify=false: that flag doesn't exist on
+          # `helm plugin install` (azure/setup-helm's 3.17.0 rejects it with "unknown
+          # flag: --verify") — the ecosystem's own justfile/devcontainer only get away
+          # with passing it by swallowing the failure (`2>/dev/null || true`).
+          helm plugin install https://github.com/databus23/helm-diff
           k3d version && just --version && helmfile --version
 
       # --- Provision: `just up`, step by step, on prebuilt images ---
