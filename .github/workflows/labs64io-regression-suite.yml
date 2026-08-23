@@ -176,7 +176,7 @@ jobs:
 
       - uses: azure/setup-helm@v5.0.1
         with:
-          version: "3.17.0"
+          version: "4.2.4"
 
       - name: Install the published ecosystem chart
         # No LABS64_CHART override: this suite exercises what a consumer actually
@@ -312,7 +312,7 @@ jobs:
       # --- Toolchain: the same versions .devcontainer/post-create.sh installs ---
       - uses: azure/setup-helm@v5.0.1
         with:
-          version: "3.17.0"
+          version: "4.2.4"
 
       - name: Install k3d, just, helmfile and the helm-diff plugin
         run: |
