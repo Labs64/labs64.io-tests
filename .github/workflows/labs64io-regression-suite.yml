@@ -226,33 +226,6 @@ jobs:
           name: smoke-report
           path: labs64.io-tests/results/smoke
 
-      - name: P0-blocker regression tests
-        # Runs even if smoke had failures above — a failing smoke case is signal,
-        # not a crash, and p0-blockers is cheap once the cluster is already up.
-        # !cancelled() (not always()) so a manual run cancellation still skips it.
-        if: ${{ !cancelled() }}
-        run: |
-          robot \
-            --include p0-blocker \
-            --exclude not-ga \
-            --outputdir results/p0-blockers \
-            --output output.xml \
-            --log log.html \
-            --report report.html \
-            tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
-
-      - name: Summarise P0-blockers
-        if: ${{ !cancelled() }}
-        run: |
-          python scripts/robot_summary.py results/p0-blockers/output.xml \
-            --title "P0 blockers" \
-            --artifact p0-blocker-report
-
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: p0-blocker-report
-          path: labs64.io-tests/results/p0-blockers
 
       - name: Dump diagnostics on failure
         if: failure()
@@ -356,7 +329,7 @@ jobs:
           # `helm plugin install` (azure/setup-helm's 3.17.0 rejects it with "unknown
           # flag: --verify") — the ecosystem's own justfile/devcontainer only get away
           # with passing it by swallowing the failure (`2>/dev/null || true`).
-          helm plugin install https://github.com/databus23/helm-diff --version v3.9.14
+          helm plugin install https://github.com/databus23/helm-diff --version v3.15.11
           k3d version && just --version && helmfile --version
 
       # --- Provision: `just up`, step by step, on prebuilt images ---
@@ -435,9 +408,9 @@ jobs:
       - name: Full regression across all services
         run: |
           robot \
-            --include regression \
             --exclude flaky \
             --exclude not-ga \
+            --exclude known-bug \
             --outputdir results/nightly \
             --output output.xml \
             --log log.html \

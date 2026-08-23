@@ -253,18 +253,16 @@ def render(all_operations: list[ProtectedOperation]) -> str:
             requirement.append("scope(s) " + ", ".join(operation.scopes))
         needs = " and ".join(requirement) if requirement else "authentication"
 
-        # p0-blocker: an endpoint the contract says is protected but the edge
-        # serves anonymously is release-blocking by definition, so these gate
-        # PRs rather than waiting for the nightly run. A not-GA module's images
-        # were never published, so the edge can only ever return 503 (no
-        # backend) — that's an environment fact, not an enforcement gap, so it
-        # gets `not-ga` instead so CI can exclude it without losing the case.
+        # smoke: auth-enforcement tests are fast edge-rejection checks (no
+        # fixtures, no tenant state) that belong in the PR gate. A not-GA
+        # module's images were never published, so the edge can only ever
+        # return 503 — that's an environment fact, not an enforcement gap,
+        # so it gets `not-ga` and CI excludes it without losing the case.
         tags = [
             operation.module.tag,
-            "regression",
+            "smoke",
             "auth",
             "auth-enforcement",
-            "p0-blocker",
             "generated",
         ]
         if operation.module.not_ga:

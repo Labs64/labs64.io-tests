@@ -14,7 +14,7 @@ ${PAYMENT_AUDITFLOW_SESSION}       payment-auditflow-e2e
 Created payment event reaches AuditFlow
     [Documentation]    Creating a payment through the gateway eventually produces an AuditFlow
     ...                event carrying the same correlation ID.
-    [Tags]    e2e    regression    local-k8s-only    payment-gateway    auditflow
+    [Tags]    payment-gateway    auditflow    regression    e2e    local-k8s-only
     Skip Unless Local Kubernetes
     Create Payment Gateway Session With Scope
     ...    ${PAYMENT_AUDITFLOW_E2E_SCOPES}

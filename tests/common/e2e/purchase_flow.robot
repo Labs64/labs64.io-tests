@@ -11,7 +11,7 @@ Complete end-to-end purchase flow
     [Documentation]    Verify customer creation, purchase order, checkout session, and audit event emission.
     # not-ga: requires Checkout, whose images have never been published — see
     # labs64.io-helm-charts/charts/labs64io-ecosystem/values.yaml. Drop once GA.
-    [Tags]    e2e    regression    not-ga
+    [Tags]    checkout    payment-gateway    auditflow    regression    e2e    not-ga
     # TODO: Implement the full E2E flow once Checkout and Payment Gateway mocks are finalized.
     # 1. Create a Customer (Checkout API)
     # 2. Create a Purchase Order (Checkout API)

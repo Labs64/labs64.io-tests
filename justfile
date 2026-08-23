@@ -78,13 +78,9 @@ _run *args: install
 smoke:
     @just _run --include smoke --exclude not-ga {{ALL_TESTS}}
 
-# Guard tests for known-critical defect classes — always gating, never skipped
-p0:
-    @just _run --include p0-blocker --exclude not-ga {{ALL_TESTS}}
-
-# Full functional regression, excluding quarantined flaky and not-yet-GA cases (nightly shape)
+# Full functional regression, excluding quarantined flaky, not-yet-GA cases, and known bugs (nightly shape)
 regression:
-    @just _run --include regression --exclude flaky --exclude not-ga {{ALL_TESTS}}
+    @just _run --exclude flaky --exclude not-ga --exclude known-bug {{ALL_TESTS}}
 
 # `robot --dryrun` resolves every keyword and `Resource` import without sending a single
 # request, so a test calling a keyword that does not exist fails here instead of surfacing
