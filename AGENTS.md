@@ -36,6 +36,13 @@ to `results/`) — `just --list` for the full set, `just smoke` / `just regressi
 test-module <name>` / `just log` for the common ones. It's a thin wrapper, not a framework layer:
 every recipe still shells out to plain `robot` — see "What NOT to do" below.
 
+Run `just dryrun` before claiming a suite change works. It is `robot --dryrun` over every
+suite: no cluster, no requests, seconds — and it resolves every keyword and `Resource` import,
+which is the check that catches a test calling a keyword no resource file defines. That has
+shipped here before (`payment_flow.robot` against `resources/payment_gateway.resource`) and
+cost a full nightly provision to discover, as two failures indistinguishable from real ones.
+CI runs the same check as its `static-checks` job.
+
 ## Gateway edge only
 
 All base URLs point at the Traefik/authproxy gateway (`http://gateway.localhost/<module>/api/v1`), never a backend port directly. Cerbos authorization is enforced at the gateway; backends trust gateway-supplied `X-Auth-*` headers and in the `local` profile may even fall back to a default tenant. Hitting a backend directly makes an authz test meaningless — it would pass or fail regardless of the token.
@@ -67,7 +74,12 @@ Tag every case for a module whose images have never been published `not-ga` (cur
 1. Confirm the module has a real OpenAPI spec and check its `AGENTS.md` for base path / port conventions.
 2. Add `resources/<module>.resource` following the pattern in `auditflow.resource` or `payment_gateway.resource` (session helpers + one keyword per operation you'll test).
 3. Add `tests/<module>/smoke.robot` and `tests/<module>/authz.robot`.
-4. Add the module to the CI matrix in `.github/workflows/labs64io-regression-suite.yml`.
+4. Add `../labs64.io-<module>/tests/e2e/` to the robot data sources in every job of
+   `.github/workflows/labs64io-regression-suite.yml` and to `ALL_TESTS` in the `justfile`
+   (there is no build matrix — each job passes the suite paths to one `robot` call). If
+   the module ships a container image, add it to `scripts/mirror_edge_images.sh` and give
+   its CI an `edge-image` job (`mode: edge`, gated on a green master build) — the nightly
+   job deploys `:edge` images and builds nothing.
 5. Add the module to `README.md`'s repository structure and P0 coverage table if applicable.
 
 ## Local-only pod-log corroboration (explicit exception)
