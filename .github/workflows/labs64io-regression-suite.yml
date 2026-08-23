@@ -174,10 +174,11 @@ jobs:
           k3d cluster create regression --agents 1 --wait \
             -p "80:80@loadbalancer" --k3s-arg "--disable=traefik@server:0"
 
-      - uses: azure/setup-helm@v5.0.1
-        with:
-          version: "4.2.4"
-
+      - name: Install Helm 4.2.4
+        run: |
+          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+          chmod 700 get_helm.sh
+          ./get_helm.sh --version v4.2.4
       - name: Install the published ecosystem chart
         # No LABS64_CHART override: this suite exercises what a consumer actually
         # gets (the published chart), not this repo's own working tree.
@@ -310,9 +311,11 @@ jobs:
           path: labs64.io-helm-charts
 
       # --- Toolchain: the same versions .devcontainer/post-create.sh installs ---
-      - uses: azure/setup-helm@v5.0.1
-        with:
-          version: "4.2.4"
+      - name: Install Helm 4.2.4
+        run: |
+          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+          chmod 700 get_helm.sh
+          ./get_helm.sh --version v4.2.4
 
       - name: Install k3d, just, helmfile and the helm-diff plugin
         run: |
@@ -326,10 +329,7 @@ jobs:
           sudo install -m 0755 /tmp/helmfile /usr/local/bin/helmfile
           # helmfile apply renders a diff before every release; without this plugin it
           # fails on the first one. No --verify=false: that flag doesn't exist on
-          # `helm plugin install` (azure/setup-helm's 3.17.0 rejects it with "unknown
-          # flag: --verify") — the ecosystem's own justfile/devcontainer only get away
-          # with passing it by swallowing the failure (`2>/dev/null || true`).
-          helm plugin install https://github.com/databus23/helm-diff --version v3.15.11
+          helm plugin install https://github.com/databus23/helm-diff --version v3.15.11 --verify=false
           k3d version && just --version && helmfile --version
 
       # --- Provision: `just up`, step by step, on prebuilt images ---
