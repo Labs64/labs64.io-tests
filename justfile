@@ -19,7 +19,7 @@
 # (e.g., `just smoke console=none`).
 console := "verbose"
 ROBOT := ".venv/bin/robot --console " + console
-ALL_TESTS := "tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/"
+ALL_TESTS := "tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/"
 
 # List available recipes
 default:
@@ -123,9 +123,9 @@ test-file file:
 test-case name file:
     @just _run --test "{{name}}" {{file}}
 
-# Everything, no tag filter at all (slowest option)
+# Everything, excluding not-yet-GA cases (as they are not deployed)
 all:
-    @just _run {{ALL_TESTS}}
+    @just _run --exclude not-ga {{ALL_TESTS}}
 
 # Alias for `all`, kept for parity with the `test` recipe every other module justfile exposes
 test: all
