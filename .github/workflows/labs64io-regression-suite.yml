@@ -356,7 +356,7 @@ jobs:
           # `helm plugin install` (azure/setup-helm's 3.17.0 rejects it with "unknown
           # flag: --verify") — the ecosystem's own justfile/devcontainer only get away
           # with passing it by swallowing the failure (`2>/dev/null || true`).
-          helm plugin install https://github.com/databus23/helm-diff
+          helm plugin install https://github.com/databus23/helm-diff --version v3.9.14
           k3d version && just --version && helmfile --version
 
       # --- Provision: `just up`, step by step, on prebuilt images ---
