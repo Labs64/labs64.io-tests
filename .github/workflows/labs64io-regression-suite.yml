@@ -175,6 +175,7 @@ jobs:
         run: |
           robot \
             --include smoke \
+            --exclude not-ga \
             --outputdir results/smoke \
             --output output.xml \
             --log log.html \
@@ -195,6 +196,7 @@ jobs:
         run: |
           robot \
             --include p0-blocker \
+            --exclude not-ga \
             --outputdir results/p0-blockers \
             --output output.xml \
             --log log.html \
@@ -309,6 +311,7 @@ jobs:
           robot \
             --include regression \
             --exclude flaky \
+            --exclude not-ga \
             --outputdir results/nightly \
             --output output.xml \
             --log log.html \
