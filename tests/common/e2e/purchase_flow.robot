@@ -1,9 +1,9 @@
 *** Settings ***
 Documentation    Cross-service end-to-end functional flows.
 ...              These flows test the interactions between Checkout, Payment Gateway, and Auditflow.
-Resource         ../../resources/checkout.resource
-Resource         ../../resources/payment_gateway.resource
-Resource         ../../resources/auditflow.resource
+Resource         ../../../resources/checkout.resource
+Resource         ../../../resources/payment_gateway.resource
+Resource         ../../../resources/auditflow.resource
 Suite Teardown   Delete All Sessions
 
 *** Test Cases ***
