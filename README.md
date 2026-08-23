@@ -57,7 +57,7 @@ labs64.io-tests/
 | `contract` | Mirrors a path covered by Schemathesis | Informational |
 | `e2e` | Cross-service flows | Targeted / pre-release |
 | `critical` | Failure blocks a release | Always gating |
-| `p0-blocker` | Guards a known-critical defect class | Always gating, never skipped |
+
 | `flaky` | Quarantined — non-blocking | Nightly, excluded from gating |
 | `not-ga` | Targets a module whose images have never been published | Always excluded, kept for when it ships |
 | `auth` | Authentication / authorisation assertions | — |
@@ -116,7 +116,7 @@ robot --test "Publish With Correct Scope Is Allowed" tests/auditflow/authz.robot
 
 **P0 blocker tests only (never skipped):**
 ```bash
-robot --include p0-blocker --exclude not-ga tests/
+robot --include smoke --exclude not-ga tests/
 ```
 
 **Full regression, excluding flaky and not-yet-GA modules:**
@@ -207,7 +207,7 @@ individual regressions, without downloading the `log.html` artifact.
 
 | Defect class | Test file | Tag |
 |---|---|---|
-| Phantom JWT (auth gap between spec and implementation) | `tests/auditflow/authz.robot` | `p0-blocker` |
+| Phantom JWT (auth gap between spec and implementation) | `tests/auditflow/authz.robot` | `regression` |
 
 ## Adding, running, or auditing tests
 

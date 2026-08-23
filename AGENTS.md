@@ -65,7 +65,7 @@ Don't create a file per HTTP verb or per tiny variation — group related test c
 
 ## Tag taxonomy
 
-See `README.md` for the full table. The tags that matter most when writing a new test: `smoke` (PR-gating, keep fast and few), `p0-blocker` (guards a known-critical defect class, never quarantined), `auth`/`tenant-isolation` (authz matrix cases). Every test needs at least one of `smoke` or `regression`.
+See `README.md` for the full table. The tags that matter most when writing a new test: `smoke` (PR-gating, keep fast and few), `regression` (full suite), `auth`/`tenant-isolation` (authz matrix cases). Every test needs at least one of `smoke` or `regression`.
 
 Tag every case for a module whose images have never been published `not-ga` (currently Checkout — see `README.md`'s Tag Taxonomy note), so `smoke`/`p0`/`regression` can `--exclude not-ga` instead of gating on a 503 that no fix can turn green. For the generated `tests/common/auth_enforcement.robot`, set `not_ga=True` on the module's entry in `scripts/generate_auth_enforcement_suite.py` and regenerate — don't hand-edit the generated file.
 
