@@ -27,8 +27,10 @@ env:
   API_TOKEN: ${{ secrets.API_TOKEN }}
 
 jobs:
-  auth-enforcement-coverage:
-    name: Auth Enforcement Coverage
+  # Everything that can be judged without a cluster, in under a minute, so the
+  # cheapest failures are also the fastest ones to find out about.
+  static-checks:
+    name: Static Checks (dry run + auth coverage)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -72,6 +74,36 @@ jobs:
         # Regenerates from the module specs and fails if the committed suite differs.
         run: python scripts/generate_auth_enforcement_suite.py --check
 
+      - name: Dry run — every keyword and resource import resolves
+        # `robot --dryrun` parses and resolves every suite without executing a single
+        # request: missing keywords, broken `Resource` paths and wrong argument counts
+        # all surface here. That class of breakage is otherwise only discovered after a
+        # 20-minute provision, as a test failure indistinguishable from a real one —
+        # this suite has shipped exactly that (payment_flow.robot calling keywords that
+        # `resources/payment_gateway.resource` never defined). No `--exclude`: a suite
+        # excluded from execution must still be syntactically sound.
+        run: |
+          robot \
+            --dryrun \
+            --outputdir results/dryrun \
+            --output output.xml \
+            --log log.html \
+            --report report.html \
+            tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
+
+      - name: Summarise dry run
+        if: ${{ !cancelled() }}
+        run: |
+          python scripts/robot_summary.py results/dryrun/output.xml \
+            --title "Dry run (static suite validation)" \
+            --artifact dryrun-report
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: dryrun-report
+          path: labs64.io-tests/results/dryrun
+
   # Smoke (all 3 modules) + P0-blockers, against one shared, ephemeral k3d cluster.
   # Previously these were 4 separate jobs (a 3-way smoke matrix + p0-blockers),
   # each expecting a `gateway.localhost` that nothing ever provisioned — every run
@@ -80,6 +112,13 @@ jobs:
   # labs64io-published-chart-e2e.yml already does (k3d + install.sh), then runs
   # both robot suites sequentially against it, so the cost of standing up the
   # cluster is paid once instead of four times.
+  #
+  # Deliberately the PUBLISHED consumer path (install.sh + the released ecosystem
+  # chart), not the Helmfile developer path nightly-regression uses: a PR must not
+  # wait on a full from-source image build, and this is the install every consumer
+  # actually performs. The cost is that the demo tenants install.sh provisions are
+  # the only ones that exist — which is why the fixture-dependent suites are tagged
+  # `regression`, not `smoke`, and run in nightly-regression below.
   pr-gate:
     name: Smoke + P0 Blockers
     runs-on: ubuntu-latest
@@ -145,18 +184,10 @@ jobs:
         working-directory: labs64.io-helm-charts
         run: bash install.sh install
 
-      - name: Assert no pod is stuck pulling
-        # Fail on a broken environment here, not forty unrelated robot failures below.
-        run: |
-          set -euo pipefail
-          kubectl -n labs64io get pods
-          if kubectl -n labs64io get pods \
-               -o jsonpath='{.items[*].status.containerStatuses[*].state.waiting.reason}' \
-             | tr ' ' '\n' | grep -qE 'ImagePullBackOff|ErrImagePull'; then
-            echo "::error::image pull failure — environment is broken, not the tests"
-            kubectl -n labs64io get pods -o wide
-            exit 1
-          fi
+      - name: Wait for the stack to be ready
+        # Fail on a broken environment here, with the offending pod's own logs and
+        # events, rather than on forty unrelated robot failures below.
+        run: bash scripts/wait_for_pods.sh labs64io 600
 
       - name: Assert module health
         run: helm test labs64io -n labs64io --timeout 10m
@@ -182,6 +213,13 @@ jobs:
             --report report.html \
             tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
 
+      - name: Summarise smoke suite
+        if: ${{ !cancelled() }}
+        run: |
+          python scripts/robot_summary.py results/smoke/output.xml \
+            --title "Smoke — all modules" \
+            --artifact smoke-report
+
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -203,6 +241,13 @@ jobs:
             --report report.html \
             tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
 
+      - name: Summarise P0-blockers
+        if: ${{ !cancelled() }}
+        run: |
+          python scripts/robot_summary.py results/p0-blockers/output.xml \
+            --title "P0 blockers" \
+            --artifact p0-blocker-report
+
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -221,11 +266,33 @@ jobs:
   # dlq_replay, quota_enforcement, secret_ref_resolution) via the `regression`
   # tag, alongside every other `regression`-tagged case.
   #
-  # Provisions its own cluster (same pattern as pr-gate above) rather than
-  # sharing pr-gate's — this job doesn't run on pull_request, so on the common
-  # PR path only pr-gate's single cluster is ever paid for; on schedule/release/
-  # workflow_dispatch both jobs run, so two clusters, down from the previous
-  # five (3 smoke + p0-blockers + nightly).
+  # PROVISIONING: the Helmfile developer path, i.e. what `just up` does — NOT
+  # install.sh. Those six suites assert against fixtures that exist only in
+  # labs64.io-helm-charts' `overrides/auditflow/values.local.yaml`: the t_regression
+  # tenant and its deliberately-failing probe pipelines, the t_regression_quota
+  # tenant's tiny quota, and the global redaction rule. install.sh's quickstart
+  # profile provisions only a `t_mock` demo tenant, so on that path all 40 of them
+  # failed 403 TENANT_NOT_PROVISIONED — a red suite that no product fix could turn
+  # green. Helmfile is also the only path that applies every module's local
+  # override (central Cerbos PDP address, local secretRef resolver, gateway routes).
+  #
+  # The local path serves images from a k3d-hosted registry on localhost:5005. Those
+  # are mirrored in from each module's `:edge` tag — the image its own CI pushed
+  # after its last green master build — never rebuilt here. Nightly's job is to find
+  # integration failures between modules; rebuilding eight images from source to do
+  # that re-runs work every module's CI already did, adds Maven/npm caches and eight
+  # more ways for the job to fail red for reasons that are not a regression, and
+  # tests a tree nobody has validated rather than the artifact everyone deploys.
+  # `scripts/mirror_edge_images.sh` also records the exact source digest of every
+  # image in the job summary, so a red nightly names what it ran against.
+  #
+  # That includes checkout and customer-portal, which have no released image: their
+  # CI now publishes `:edge` too, so `install-all-apps` can deploy them instead of
+  # leaving two permanently ImagePullBackOff-ing releases. Their test suites stay
+  # excluded via `not-ga`; flipping that is a follow-up now that this job serves them.
+  #
+  # This job doesn't run on pull_request, so on the common PR path only pr-gate's
+  # single cluster is ever paid for.
   nightly-regression:
     name: Full Regression (nightly + release gate)
     if: github.event_name == 'schedule' || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
@@ -234,10 +301,12 @@ jobs:
     defaults:
       run:
         working-directory: labs64.io-tests
-    env:
-      LABS64_PROFILE: quickstart
-      LABS64_YES: "1"
     steps:
+      # Siblings, exactly as `just clone` arranges them: the module suites import
+      # ../../../labs64.io-tests/resources/*.resource, and the Helmfile state and
+      # its overrides live in labs64.io-helm-charts. Only repositories that carry a
+      # test suite or the deployment state are needed — the images come from Docker
+      # Hub, so no module's source is built here.
       - name: Check out test suite
         uses: actions/checkout@v7
         with:
@@ -261,42 +330,96 @@ jobs:
           repository: Labs64/labs64.io-checkout
           path: labs64.io-checkout
 
-      - name: Check out Helm charts (for install.sh)
+      - name: Check out Helm charts
         uses: actions/checkout@v7
         with:
           repository: Labs64/labs64.io-helm-charts
           path: labs64.io-helm-charts
 
-      - name: Create k3d cluster
-        run: |
-          set -euo pipefail
-          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-          k3d cluster create regression --agents 1 --wait \
-            -p "80:80@loadbalancer" --k3s-arg "--disable=traefik@server:0"
-
+      # --- Toolchain: the same versions .devcontainer/post-create.sh installs ---
       - uses: azure/setup-helm@v5.0.1
         with:
           version: "3.17.0"
 
-      - name: Install the published ecosystem chart
-        working-directory: labs64.io-helm-charts
-        run: bash install.sh install
-
-      - name: Assert no pod is stuck pulling
+      - name: Install k3d, just, helmfile and the helm-diff plugin
         run: |
           set -euo pipefail
-          kubectl -n labs64io get pods
-          if kubectl -n labs64io get pods \
-               -o jsonpath='{.items[*].status.containerStatuses[*].state.waiting.reason}' \
-             | tr ' ' '\n' | grep -qE 'ImagePullBackOff|ErrImagePull'; then
-            echo "::error::image pull failure — environment is broken, not the tests"
-            kubectl -n labs64io get pods -o wide
-            exit 1
-          fi
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
+            | sudo bash -s -- --to /usr/local/bin
+          HELMFILE_VERSION=1.7.1
+          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/v${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C /tmp helmfile
+          sudo install -m 0755 /tmp/helmfile /usr/local/bin/helmfile
+          # helmfile apply renders a diff before every release; without this plugin it
+          # fails on the first one.
+          helm plugin install --verify=false https://github.com/databus23/helm-diff
+          k3d version && just --version && helmfile --version
 
-      - name: Assert module health
-        run: helm test labs64io -n labs64io --timeout 10m
+      # --- Provision: `just up`, step by step, on prebuilt images ---
+      - name: Create the k3d cluster and local registry
+        # k3d/labs64io.yaml, not an ad-hoc `k3d cluster create`: it is what pins the
+        # registry to localhost:5005 (the address every values.local.yaml image
+        # reference expects), maps :80/:443 for the *.localhost hostnames, and
+        # disables k3s' bundled Traefik and metrics-server. The cluster name also
+        # matters — the context it produces, k3d-labs64io, is what the
+        # `local-k8s-only` tests gate on, so those cases execute here instead of
+        # silently skipping.
+        working-directory: labs64.io-helm-charts
+        run: just cluster-up
 
+      - name: Mirror the :edge images into the local registry
+        # Pulls every module's :edge tag — what its own CI pushed after its last
+        # green master build — and re-tags it to the localhost:5005/<name>:latest
+        # reference the Helmfile local overrides pin, so no chart or override has to
+        # know where the image came from. Fails naming every module whose :edge tag
+        # is missing (and the workflow that publishes it) rather than deploying a
+        # half-mirrored, mixed-vintage stack.
+        run: bash scripts/mirror_edge_images.sh localhost:5005
+
+      - name: Install core tools (Traefik, ESO, RabbitMQ, PostgreSQL, Redis, mock-oidc)
+        working-directory: labs64.io-helm-charts
+        run: |
+          set -euo pipefail
+          just generate-secrets
+          just repo-update
+          just install-tools
+
+      - name: Wait for core tools
+        # `just up` runs install-tools and install-all-apps back to back, but
+        # helmfile returns once manifests are applied, not once anything serves. A
+        # developer absorbs that by waiting; CI has to gate on it, or the modules
+        # start against a broker and database that are not accepting connections yet.
+        run: bash scripts/wait_for_pods.sh tools 900
+
+      - name: Install all Labs64.IO apps
+        working-directory: labs64.io-helm-charts
+        run: just install-all-apps
+
+      - name: Wait for the modules to be ready
+        run: bash scripts/wait_for_pods.sh labs64io 900
+
+      - name: Probe the gateway edge
+        # The single precondition every test below shares: a token can be minted and
+        # the gateway routes to a module. Failing here names the broken hop; failing
+        # later just floods the report with connection errors.
+        run: |
+          set -euo pipefail
+          curl -fsS -o /dev/null -X POST "${MOCK_OIDC_BASE_URL}/${OIDC_ISSUER_ID}/token" \
+            -d grant_type=client_credentials -d client_id=local-test \
+            -d client_secret=local-test -d scope=admin
+          echo "mock-oidc: OK"
+          # A real protected operation (the only path in AuditFlow's contract),
+          # called with no credentials: 401/403 proves routing and the authproxy are
+          # both live, which is all this checks. Anything else — 404, 502, 000 — is
+          # a broken edge, and saying so here beats a hundred connection errors below.
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+            -H 'Content-Type: application/json' -d '{}' \
+            "${AUDITFLOW_BASE_URL}/audit/publish")
+          echo "auditflow edge: HTTP $code"
+          case "$code" in 401|403) ;; *) echo "::error::unexpected edge status $code"; exit 1 ;; esac
+
+      # --- Test suite ---
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
@@ -318,6 +441,13 @@ jobs:
             --report report.html \
             tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
 
+      - name: Summarise regression run
+        if: ${{ !cancelled() }}
+        run: |
+          python scripts/robot_summary.py results/nightly/output.xml \
+            --title "Full regression (nightly + release gate)" \
+            --artifact nightly-regression-report
+
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -327,5 +457,10 @@ jobs:
       - name: Dump diagnostics on failure
         if: failure()
         run: |
-          kubectl -n labs64io get events --sort-by=.lastTimestamp | tail -50 || true
-          kubectl -n labs64io describe pods | tail -120 || true
+          for ns in labs64io tools; do
+            echo "=== $ns ==="
+            kubectl -n "$ns" get pods -o wide || true
+            kubectl -n "$ns" get events --sort-by=.lastTimestamp | tail -40 || true
+          done
+          kubectl -n labs64io logs -l app.kubernetes.io/part-of=Labs64.IO \
+            --tail=60 --prefix --all-containers 2>/dev/null | tail -300 || true

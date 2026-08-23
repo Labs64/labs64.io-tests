@@ -86,6 +86,19 @@ p0:
 regression:
     @just _run --include regression --exclude flaky --exclude not-ga {{ALL_TESTS}}
 
+# `robot --dryrun` resolves every keyword and `Resource` import without sending a single
+# request, so a test calling a keyword that does not exist fails here instead of surfacing
+# after a full provision as a test failure indistinguishable from a real regression. No tag
+# filter, because an excluded suite must still be sound.
+# Static suite validation — no cluster, seconds; same check CI's static-checks job runs
+dryrun: install
+    #!/usr/bin/env bash
+    set -uo pipefail
+    {{ROBOT}} --dryrun --outputdir results/dryrun {{ALL_TESTS}}
+    status=$?
+    python3 scripts/robot_summary.py results/dryrun/output.xml --title "Dry run (static suite validation)"
+    exit $status
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Targeted runs
 # ─────────────────────────────────────────────────────────────────────────────
