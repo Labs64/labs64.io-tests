@@ -150,7 +150,7 @@ The GitHub Actions workflow (`.github/workflows/labs64io-regression-suite.yml`) 
 | Job | Trigger | Target it provisions |
 |---|---|---|
 | **Static Checks** | every PR, ~1 min | none — no cluster needed |
-| **Smoke + P0 Blockers** | every PR | ephemeral k3d + `bash install.sh install` (the **published** ecosystem chart, same pattern as `labs64io-published-chart-e2e.yml` in `labs64.io-helm-charts`) |
+| **Smoke** | every PR | ephemeral k3d + `bash install.sh install` (the **published** ecosystem chart, same pattern as `labs64io-published-chart-e2e.yml` in `labs64.io-helm-charts`) |
 | **Full Regression** | nightly, `release`, `workflow_dispatch` | k3d + local registry + **Helmfile** (`just up`), running each module's `:edge` image |
 
 **Static Checks** is the fastest way to find a broken test. It runs

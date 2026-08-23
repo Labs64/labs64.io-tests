@@ -120,7 +120,7 @@ jobs:
   # the only ones that exist — which is why the fixture-dependent suites are tagged
   # `regression`, not `smoke`, and run in nightly-regression below.
   pr-gate:
-    name: Smoke + P0 Blockers
+    name: Smoke
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:
@@ -311,11 +311,11 @@ jobs:
           path: labs64.io-helm-charts
 
       # --- Toolchain: the same versions .devcontainer/post-create.sh installs ---
-      - name: Install Helm 4.2.4
+      - name: Install Helm 4
         run: |
           curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
           chmod 700 get_helm.sh
-          ./get_helm.sh --version v4.2.4
+          ./get_helm.sh
 
       - name: Install k3d, just, helmfile and the helm-diff plugin
         run: |
