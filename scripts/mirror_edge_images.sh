@@ -30,8 +30,6 @@ auditflow-transformer
 auditflow-sink
 traefik-authproxy
 payment-gateway
-checkout
-checkout-ui
 customer-portal-ui
 "
 
