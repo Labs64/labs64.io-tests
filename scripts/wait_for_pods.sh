@@ -44,6 +44,8 @@ while :; do
   pods="$(kubectl -n "$NAMESPACE" get pods --no-headers 2>/dev/null)"
 
   if [ -n "$pods" ]; then
+    # Filter out `checkout` because it is not GA and its `:edge` images do not exist.
+    # It will permanently sit in ImagePullBackOff, which we intentionally bypass here.
     if echo "$pods" | grep -v "checkout" | grep -Eq "$FATAL"; then
       echo "::error::Pods in '$NAMESPACE' are in an unrecoverable state — the environment is broken, not the tests."
       diagnose
