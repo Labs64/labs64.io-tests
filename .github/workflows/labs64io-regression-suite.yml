@@ -320,7 +320,7 @@ jobs:
           curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
           curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
             | sudo bash -s -- --to /usr/local/bin
-          HELMFILE_VERSION=1.7.1
+          HELMFILE_VERSION=1.7.4
           curl -fsSL "https://github.com/helmfile/helmfile/releases/download/v${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_linux_amd64.tar.gz" \
             | tar -xz -C /tmp helmfile
           sudo install -m 0755 /tmp/helmfile /usr/local/bin/helmfile
