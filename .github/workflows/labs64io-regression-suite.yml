@@ -174,11 +174,11 @@ jobs:
           k3d cluster create regression --agents 1 --wait \
             -p "80:80@loadbalancer" --k3s-arg "--disable=traefik@server:0"
 
-      - name: Install Helm 4.2.4
+      - name: Install Helm 4
         run: |
           curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
           chmod 700 get_helm.sh
-          ./get_helm.sh --version v4.2.4
+          ./get_helm.sh
       - name: Install the published ecosystem chart
         # No LABS64_CHART override: this suite exercises what a consumer actually
         # gets (the published chart), not this repo's own working tree.
