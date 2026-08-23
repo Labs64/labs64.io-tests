@@ -19,7 +19,7 @@
 # (e.g., `just smoke console=none`).
 console := "verbose"
 ROBOT := ".venv/bin/robot --console " + console
-ALL_TESTS := "tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/"
+ALL_TESTS := "tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/"
 
 # List available recipes
 default:

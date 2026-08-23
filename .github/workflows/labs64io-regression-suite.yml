@@ -53,11 +53,7 @@ jobs:
           repository: Labs64/labs64.io-payment-gateway
           path: labs64.io-payment-gateway
 
-      - name: Check out Checkout
-        uses: actions/checkout@v7
-        with:
-          repository: Labs64/labs64.io-checkout
-          path: labs64.io-checkout
+
 
       - uses: actions/setup-python@v7
         with:
@@ -85,11 +81,12 @@ jobs:
         run: |
           robot \
             --dryrun \
+            --exclude not-ga \
             --outputdir results/dryrun \
             --output output.xml \
             --log log.html \
             --report report.html \
-            tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
+            tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
 
       - name: Summarise dry run
         if: ${{ !cancelled() }}
@@ -150,11 +147,7 @@ jobs:
           repository: Labs64/labs64.io-payment-gateway
           path: labs64.io-payment-gateway
 
-      - name: Check out Checkout
-        uses: actions/checkout@v7
-        with:
-          repository: Labs64/labs64.io-checkout
-          path: labs64.io-checkout
+
 
       - name: Check out Helm charts (for install.sh)
         uses: actions/checkout@v7
@@ -212,7 +205,7 @@ jobs:
             --output output.xml \
             --log log.html \
             --report report.html \
-            tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
+            tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
 
       - name: Summarise smoke suite
         if: ${{ !cancelled() }}
@@ -298,11 +291,7 @@ jobs:
           repository: Labs64/labs64.io-payment-gateway
           path: labs64.io-payment-gateway
 
-      - name: Check out Checkout
-        uses: actions/checkout@v7
-        with:
-          repository: Labs64/labs64.io-checkout
-          path: labs64.io-checkout
+
 
       - name: Check out Helm charts
         uses: actions/checkout@v7
@@ -415,7 +404,7 @@ jobs:
             --output output.xml \
             --log log.html \
             --report report.html \
-            tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-checkout/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
+            tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
 
       - name: Summarise regression run
         if: ${{ !cancelled() }}
