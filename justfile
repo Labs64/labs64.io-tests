@@ -6,7 +6,7 @@
 # Quick start:
 #   just smoke              → fast PR-gating subset, all modules
 #   just regression         → full nightly-shape regression, excluding flaky
-#   just test / just all    → alias for `just regression` — kept for cross-repo `just test` parity
+#   just test               → alias for `just regression` — kept for cross-repo `just test` parity
 #   just test-module NAME    → everything for one module, e.g. `just test-module auditflow`
 #   just log                → open the most recent run's log.html (read this first on failure)
 #
@@ -86,7 +86,7 @@ smoke:
 regression:
     @just _run --exclude not-ga --exclude known-bug {{ALL_TESTS}}
 
-# Alias for `all`, kept for parity with the `test` recipe every other module justfile exposes
+# Alias for `regression`, kept for parity with the `test` recipe every other module justfile exposes
 test: regression
 
 # `robot --dryrun` resolves every keyword and `Resource` import without sending a single
