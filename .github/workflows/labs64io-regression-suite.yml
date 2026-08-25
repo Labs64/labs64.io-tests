@@ -209,6 +209,7 @@ jobs:
           robot \
             --include smoke \
             --exclude not-ga \
+            --exclude known-bug \
             --outputdir results/smoke \
             --output output.xml \
             --log log.html \

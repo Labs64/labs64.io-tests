@@ -59,16 +59,18 @@ labs64.io-tests/
 | `critical` | Failure blocks a release | Always gating |
 
 | `flaky` | Quarantined — non-blocking | Nightly, excluded from gating |
+| `known-bug` | Documents a known, unresolved defect | Excluded from `smoke` and `regression`; target it directly via `test-file`/`test-case` to check on it |
 | `not-ga` | Targets a module whose images have never been published | Always excluded, kept for when it ships |
 | `auth` | Authentication / authorisation assertions | — |
 | `tenant-isolation` | Cross-tenant / cross-scope isolation scenarios | — |
 | `error-handling` | Error path / negative testing | — |
 
-> `contract` and `flaky` are **reserved for future use** — no test currently carries
+> `contract`, `critical`, and `flaky` are **reserved for future use** — no test currently carries
 > them, and that's not drift. `contract` is earmarked for tests that mirror a path Schemathesis
-> already covers (informational, not gating); `flaky` is for quarantining a genuinely flaky case
-> without deleting its coverage. The `e2e` tag is active for cross-service flows spanning more
-> than one module; environment-specific probes also carry a tag such as `local-k8s-only`.
+> already covers (informational, not gating); `critical` for a case whose failure should always
+> block a release regardless of suite; `flaky` is for quarantining a genuinely flaky case without
+> deleting its coverage. The `e2e` tag is active for cross-service flows spanning more than one
+> module; environment-specific probes also carry a tag such as `local-k8s-only`.
 >
 > `not-ga` **is** currently carried — by every Checkout case, generated and hand-written. No
 > *released* Checkout image exists (`labs64/checkout`, `labs64/checkout-ui` have only ever

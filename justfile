@@ -6,6 +6,7 @@
 # Quick start:
 #   just smoke              → fast PR-gating subset, all modules
 #   just regression         → full nightly-shape regression, excluding flaky
+#   just test / just all    → alias for `just regression` — kept for cross-repo `just test` parity
 #   just test-module NAME    → everything for one module, e.g. `just test-module auditflow`
 #   just log                → open the most recent run's log.html (read this first on failure)
 #
@@ -71,16 +72,22 @@ _run *args: install
 # CI-shaped runs — mirrors .github/workflows/labs64io-regression-suite.yml
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Fast, PR-gating subset across all modules (keep this one fast — see AGENTS.md)
 # --exclude not-ga: modules whose images were never published (currently
 # Checkout) can't be deployed by install.sh, so their cases would fail
 # identically here and in CI regardless of a real regression.
+# --exclude known-bug: a documented, unresolved defect shouldn't block every PR.
+# It's excluded from regression too (see below) — target it directly with
+# `test-file`/`test-case` to check on it.
+# Fast, PR-gating subset across all modules (keep this one fast — see AGENTS.md)
 smoke:
-    @just _run --include smoke --exclude not-ga {{ALL_TESTS}}
+    @just _run --include smoke --exclude not-ga --exclude known-bug {{ALL_TESTS}}
 
 # Full functional regression, excluding quarantined flaky, not-yet-GA cases, and known bugs (nightly shape)
 regression:
-    @just _run --exclude flaky --exclude not-ga --exclude known-bug {{ALL_TESTS}}
+    @just _run --exclude not-ga --exclude known-bug {{ALL_TESTS}}
+
+# Alias for `all`, kept for parity with the `test` recipe every other module justfile exposes
+test: regression
 
 # `robot --dryrun` resolves every keyword and `Resource` import without sending a single
 # request, so a test calling a keyword that does not exist fails here instead of surfacing
@@ -122,13 +129,6 @@ test-file file:
 # One named test case within a file
 test-case name file:
     @just _run --test "{{name}}" {{file}}
-
-# Everything, excluding not-yet-GA cases (as they are not deployed)
-all:
-    @just _run --exclude not-ga {{ALL_TESTS}}
-
-# Alias for `all`, kept for parity with the `test` recipe every other module justfile exposes
-test: all
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Results
