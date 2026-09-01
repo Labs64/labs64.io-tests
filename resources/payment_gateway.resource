@@ -13,7 +13,6 @@ ${PAYMENT_PROVIDER_READ_SCOPE}       payment-provider:read
 ${PAYMENT_PROVIDER_WRITE_SCOPE}      payment-provider:write
 ${NOOP_PROVIDER}                     noop
 ${PAYMENT_GATEWAY_PROVIDERS_PATH}    /payment-gateway/api/v1/payment-providers
-${IDEMPOTENCY_KEY_HEADER}             Idempotency-Key
 
 # Local-k8s-only: Payment Gateway's own backend deployment name for kubectl log corroboration
 # (see AGENTS.md "Local-only pod-log corroboration"). Shared namespace/authproxy deployment
@@ -47,8 +46,12 @@ List Payment Providers
 Create Payment Provider
     [Documentation]    POST /payment-providers — requires payment-provider:write scope.
     ...                Defaults to the ``noop`` provider, which needs no PSP config.
-    [Arguments]    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}    ${provider}=${NOOP_PROVIDER}    ${active}=${TRUE}
+    [Arguments]    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}    ${provider}=${NOOP_PROVIDER}    ${active}=${TRUE}    ${config}=${NONE}
     ${body}=    Create Dictionary    provider=${provider}    active=${active}
+    ${has_config}=    Evaluate    $config is not None
+    IF    ${has_config}
+        Set To Dictionary    ${body}    config=${config}
+    END
     ${response}=    POST On Session    ${alias}    /payment-providers    json=${body}    expected_status=any
     RETURN    ${response}
 
@@ -100,41 +103,12 @@ List Payments
     ${response}=    GET On Session    ${alias}    /payments    expected_status=any
     RETURN    ${response}
 
-Get Payment
-    [Documentation]    GET /payments/{id} — requires payment:read scope.
-    [Arguments]    ${payment_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
-    ${response}=    GET On Session    ${alias}    /payments/${payment_id}    expected_status=any
-    RETURN    ${response}
-
 Create Payment
     [Documentation]    POST /payments — requires payment:write scope.
     [Arguments]    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
     # Minimal stub body; authz checks occur before body validation in cerbos.
     ${body}=    Create Dictionary    amount=100    currency=USD
     ${response}=    POST On Session    ${alias}    /payments    json=${body}    expected_status=any
-    RETURN    ${response}
-
-Pay Payment
-    [Documentation]    POST /payments/{id}/pay — requires payment:pay scope.
-    [Arguments]    ${payment_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}    ${idempotency_key}=${EMPTY}
-    ${headers}=    Create Dictionary
-    IF    $idempotency_key
-        Set To Dictionary    ${headers}    ${IDEMPOTENCY_KEY_HEADER}=${idempotency_key}
-    END
-    ${response}=    POST On Session    ${alias}    /payments/${payment_id}/pay    headers=${headers}    expected_status=any
-    RETURN    ${response}
-
-List Payment Transactions
-    [Documentation]    GET /payment-transactions filtered by payment id — requires payment-transaction:read scope.
-    [Arguments]    ${payment_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
-    ${params}=    Create Dictionary    paymentId=${payment_id}
-    ${response}=    GET On Session    ${alias}    /payment-transactions    params=${params}    expected_status=any
-    RETURN    ${response}
-
-Get Payment Transaction
-    [Documentation]    GET /payment-transactions/{id} — requires payment-transaction:read scope.
-    [Arguments]    ${payment_transaction_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
-    ${response}=    GET On Session    ${alias}    /payment-transactions/${payment_transaction_id}    expected_status=any
     RETURN    ${response}
 
 Ensure Active Noop Payment Provider
@@ -174,13 +148,6 @@ Build Valid Payment Request
     ...    billingInfo=${billing_info}
     RETURN    ${request}
 
-Create Valid Payment
-    [Documentation]    POST the smallest valid payment request defined by the PG OpenAPI contract.
-    [Arguments]    ${payment_provider_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
-    ${body}=    Build Valid Payment Request    ${payment_provider_id}
-    ${response}=    POST On Session    ${alias}    /payments    json=${body}    expected_status=any
-    RETURN    ${response}
-
 Create Payment With Correlation Id
     [Documentation]    POST a valid payment request with a caller-controlled correlation ID.
     [Arguments]    ${payment_provider_id}    ${correlation_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
@@ -203,14 +170,24 @@ Create Valid Payment
 
 Pay Payment
     [Documentation]    POST /payments/{payment_id}/pay — requires payment:pay scope.
-    [Arguments]    ${payment_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}    ${idempotency_key}=${NONE}
+    [Arguments]    ${payment_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}    ${idempotency_key}=${NONE}    ${checkout}=${NONE}
     ${headers}=    Create Dictionary
     ${has_idempotency_key}=    Evaluate    $idempotency_key is not None
     IF    ${has_idempotency_key}
         Set To Dictionary    ${headers}    Idempotency-Key=${idempotency_key}
     END
     ${body}=    Create Dictionary
+    ${has_checkout}=    Evaluate    $checkout is not None
+    IF    ${has_checkout}
+        Set To Dictionary    ${body}    checkout=${checkout}
+    END
     ${response}=    POST On Session    ${alias}    /payments/${payment_id}/pay    json=${body}    headers=${headers}    expected_status=any
+    RETURN    ${response}
+
+Close Payment
+    [Documentation]    POST /payments/{payment_id}/close — requires payment:write scope.
+    [Arguments]    ${payment_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    ${response}=    POST On Session    ${alias}    /payments/${payment_id}/close    expected_status=any
     RETURN    ${response}
 
 Get Payment
@@ -230,4 +207,43 @@ List Payment Transactions
     [Arguments]    ${payment_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
     ${params}=    Create Dictionary    paymentId=${payment_id}
     ${response}=    GET On Session    ${alias}    /payment-transactions    params=${params}    expected_status=any
+    RETURN    ${response}
+
+Get Checkout Session Confirmation
+    [Documentation]    GET the public-safe checkout confirmation view.
+    [Arguments]    ${checkout_session_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    ${response}=    GET On Session    ${alias}    /checkout-sessions/${checkout_session_id}/confirmation    expected_status=any
+    RETURN    ${response}
+
+Return Provider Checkout Session
+    [Documentation]    Invoke the public PSP browser-return callback without following its tenant redirect.
+    [Arguments]    ${provider}    ${checkout_session_id}    ${query_params}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    ${response}=    GET On Session
+    ...    ${alias}
+    ...    /providers/${provider}/checkout-sessions/${checkout_session_id}/return
+    ...    params=${query_params}
+    ...    allow_redirects=${FALSE}
+    ...    expected_status=any
+    RETURN    ${response}
+
+Cancel Provider Checkout Session
+    [Documentation]    Invoke the public PSP browser-cancel callback without following its tenant redirect.
+    [Arguments]    ${provider}    ${checkout_session_id}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}    ${query_params}=${NONE}
+    ${response}=    GET On Session
+    ...    ${alias}
+    ...    /providers/${provider}/checkout-sessions/${checkout_session_id}/cancel
+    ...    params=${query_params}
+    ...    allow_redirects=${FALSE}
+    ...    expected_status=any
+    RETURN    ${response}
+
+Send Provider Webhook
+    [Documentation]    POST a raw provider webhook body and PSP signature headers to the public endpoint.
+    [Arguments]    ${provider}    ${payload}    ${headers}    ${alias}=${PAYMENT_GATEWAY_SESSION_ALIAS}
+    ${response}=    POST On Session
+    ...    ${alias}
+    ...    /providers/${provider}/webhooks
+    ...    data=${payload}
+    ...    headers=${headers}
+    ...    expected_status=any
     RETURN    ${response}
