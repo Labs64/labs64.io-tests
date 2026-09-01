@@ -64,6 +64,7 @@ labs64.io-tests/
 | `auth` | Authentication / authorisation assertions | — |
 | `tenant-isolation` | Cross-tenant / cross-scope isolation scenarios | — |
 | `error-handling` | Error path / negative testing | — |
+| `psp-stub` | Requires the external PSP HTTP stub and a matching provider endpoint override | Targeted locally + nightly |
 
 > `contract`, `critical`, and `flaky` are **reserved for future use** — no test currently carries
 > them, and that's not drift. `contract` is earmarked for tests that mirror a path Schemathesis
@@ -97,7 +98,7 @@ You need a running Labs64.IO stack reachable through its gateway edge — either
 
 ## Running Tests
 
-Fastest path: `just` (see `justfile` — `just smoke`, `just regression`, `just test-module auditflow`, `just log`, etc.; `just --list` for the full set). It wraps venv setup and the `robot` invocations below, writing output to `results/`. The rest of this section shows the underlying `robot` commands directly, for when you need a variation the justfile doesn't cover.
+Fastest path: `just` (see `justfile` — `just smoke`, `just regression`, `just test-all`, `just test-module auditflow`, `just log`, etc.; `just --list` for the full set). It wraps venv setup and the `robot` invocations below, writing output to `results/`. The rest of this section shows the underlying `robot` commands directly, for when you need a variation the justfile doesn't cover.
 
 **All smoke tests (fast, every PR):**
 ```bash
@@ -123,7 +124,7 @@ robot --include smoke --exclude not-ga tests/
 
 **Full regression, excluding flaky and not-yet-GA modules:**
 ```bash
-robot --include regression --exclude flaky --exclude not-ga tests/
+robot --include regression --exclude flaky --exclude not-ga --exclude psp-stub tests/
 ```
 
 **Auth/authz matrix only, across all services:**
@@ -132,6 +133,53 @@ robot --include auth tests/
 ```
 
 Robot writes `output.xml`, `log.html`, and `report.html` to the current directory (or `--outputdir <dir>`) on every run — open `log.html` first when a test fails, it has the full request/response detail per keyword.
+
+### PSP stub tests
+
+The ordinary local regression assumes a normal Payment Gateway deployment and excludes
+`psp-stub` cases:
+
+```bash
+cd ../labs64.io-helm-charts
+just up
+
+cd ../labs64.io-tests
+just test
+```
+
+To switch the existing local Payment Gateway deployment to the host-side WireMock endpoint,
+run the targeted suite, and then restore the normal provider endpoint:
+
+```bash
+just test-up
+just test-status
+just test-psp
+just test-down
+```
+
+To run the complete local gate in one command, including both the normal regression and the
+PSP-stub scenarios, use:
+
+```bash
+just test-all
+```
+
+It runs the ordinary regression before changing PG, enables the stub only for the PSP phase,
+and restores the normal deployment even when setup or tests fail. Phase reports are written to
+`results/regression/` and `results/psp/`; the merged report remains at `results/report.html`.
+A final summary repeats every phase result and report path at the bottom of the terminal output,
+including `NOT RUN` for a phase that setup prevented from starting.
+
+`test-up` does not rebuild an image or recreate the cluster. It starts WireMock and applies a
+small Helm override that rolls only Payment Gateway. `test-down` reapplies the ordinary local
+values before stopping WireMock. The Robot tests are not Kubernetes-specific: `just test-psp`
+can target any already-prepared environment through the usual base URL variables.
+
+Provider-specific Robot scenarios and WireMock mappings remain in the provider module repository;
+this repository owns only the reusable WireMock process and test-environment lifecycle. `test-up`
+probes a host address from the k3d node itself and restricts PG egress to that single `/32` plus
+WireMock port 8090, so it does not depend on a particular k3d hosts-file layout and works in
+Docker Desktop/devcontainers and Linux CI.
 
 ### Targeting a different environment
 
