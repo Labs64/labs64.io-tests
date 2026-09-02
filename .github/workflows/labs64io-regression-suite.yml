@@ -406,17 +406,8 @@ jobs:
       - name: Install Robot Framework and libraries
         run: pip install -r requirements.txt
 
-      - name: Full regression across all services
-        run: |
-          robot \
-            --exclude flaky \
-            --exclude not-ga \
-            --exclude known-bug \
-            --outputdir results/nightly \
-            --output output.xml \
-            --log log.html \
-            --report report.html \
-            tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
+      - name: Full regression across all services and PSP providers
+        run: TEST_ALL_OUTPUT_DIR=results/nightly just test-all
 
       - name: Summarise regression run
         if: ${{ !cancelled() }}

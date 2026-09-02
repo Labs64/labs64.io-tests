@@ -1,0 +1,14 @@
+name: labs64io-tests-psp-stub
+
+services:
+  wiremock:
+    image: wiremock/wiremock:3.13.2
+    ports:
+      - "${PSP_STUB_PORT:-8090}:8080"
+    # Provider suites install their versioned mappings through WireMock's Admin API.
+    # Avoid workspace bind mounts: Docker Desktop's daemon cannot necessarily see
+    # paths that exist only inside the development container.
+    command:
+      - --disable-gzip
+      - --verbose
+    restart: unless-stopped
