@@ -60,10 +60,12 @@ while :; do
       exit 1
     fi
 
-    # Ready when the READY column reads n/n. Completed/Succeeded pods (helm hooks,
-    # jobs) report 0/1 forever and are excluded by their STATUS.
+    # Ready when the READY column reads n/n. Completed/Succeeded/Error pods (helm
+    # hooks, jobs — restartPolicy: Never) report a permanent READY mismatch and are
+    # excluded by their STATUS: a passed or failed one-shot pod is equally terminal,
+    # and it is `helm test`'s job to judge the failure, not this readiness gate's.
     pending="$(echo "$pods" | awk '
-      $3 == "Completed" || $3 == "Succeeded" || $1 ~ /checkout/ { next }
+      $3 == "Completed" || $3 == "Succeeded" || $3 == "Error" || $1 ~ /checkout/ { next }
       { split($2, r, "/"); if (r[1] != r[2]) print }
     ')"
     if [ -z "$pending" ]; then
