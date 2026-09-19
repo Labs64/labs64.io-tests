@@ -46,13 +46,48 @@ publisher() {
   esac
 }
 
+# Docker Hub drops connections now and then ("connection reset by peer" while fetching
+# the auth token is the usual one), and a hosted runner has no say in it. Retry those.
+# A tag the registry says does not exist is a real answer, though, so it is not retried.
+PULL_ATTEMPTS="${PULL_ATTEMPTS:-5}"
+
+# pull_edge <image>: 0 = pulled, 2 = tag not published, 1 = still failing after retries.
+pull_edge() {
+  local ref="labs64/$1:edge" attempt=1 out rc
+  while :; do
+    out="$(docker pull "$ref" 2>&1)"; rc=$?
+    printf '%s\n' "$out"
+    [ "$rc" -eq 0 ] && return 0
+    if printf '%s' "$out" | grep -qiE 'manifest unknown|not found|repository does not exist|name unknown'; then
+      return 2
+    fi
+    [ "$attempt" -ge "$PULL_ATTEMPTS" ] && return 1
+    echo "::warning::pulling ${ref} failed (attempt ${attempt}/${PULL_ATTEMPTS}); retrying in $((attempt * 10))s"
+    sleep $((attempt * 10))
+    attempt=$((attempt + 1))
+  done
+}
+
 missing=""
+failed=""
 for image in $IMAGES; do
   echo "=== pulling labs64/${image}:edge ==="
   # Pull everything before pushing anything: a half-mirrored registry deploys a
   # mixed-vintage stack, which is worse to debug than not deploying at all.
-  docker pull "labs64/${image}:edge" || missing="${missing} ${image}"
+  pull_edge "$image"
+  case $? in
+    0) ;;
+    2) missing="${missing} ${image}" ;;
+    *) failed="${failed} ${image}" ;;
+  esac
 done
+
+if [ -n "$failed" ]; then
+  echo "::error::Could not pull :edge after ${PULL_ATTEMPTS} attempts for:${failed}"
+  echo
+  echo "The registry was unreachable or erroring (see the docker output above), not"
+  echo "reporting the tag missing. Re-run the job; if it persists, check Docker Hub status."
+fi
 
 if [ -n "$missing" ]; then
   echo "::error::No :edge image published for:${missing}"
@@ -63,8 +98,9 @@ if [ -n "$missing" ]; then
   for image in $missing; do
     printf '  labs64/%-22s <- %s\n' "${image}:edge" "$(publisher "$image")"
   done
-  exit 1
 fi
+
+[ -z "${missing}${failed}" ] || exit 1
 
 # Record exactly which build each image came from. When a nightly goes red, the
 # first question is "against what?" — this answers it without guessing from
