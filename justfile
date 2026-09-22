@@ -113,7 +113,7 @@ dryrun: install
 
 # Auth/authz matrix only, across all modules
 auth:
-    @just _run --include auth {{ALL_TESTS}}
+    @just _run --include auth --exclude not-ga --exclude known-bug {{ALL_TESTS}}
 
 # Local-k8s-only log-corroboration cases — self-skip unless local k3d is the active kubectl context
 local-k8s:

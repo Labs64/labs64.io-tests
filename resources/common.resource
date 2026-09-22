@@ -16,13 +16,20 @@ ${PAYMENT_GATEWAY_BASE_URL}   %{PAYMENT_GATEWAY_BASE_URL=${GATEWAY_BASE_URL}/pay
 ${CHECKOUT_BASE_URL}          %{CHECKOUT_BASE_URL=${GATEWAY_BASE_URL}/checkout/api/v1}
 ${CORRELATION_ID_HEADER}      X-Correlation-ID
 
-# mock-oidc (DEV ONLY) mints M2M tokens on demand — see `Get OIDC Token` below.
+# The local identity profile controls which OIDC provider mints M2M test tokens.
+${IDENTITY_PROVIDER}           %{IDENTITY_PROVIDER=mock}
 ${MOCK_OIDC_BASE_URL}         %{MOCK_OIDC_BASE_URL=http://mock-oidc.localhost}
 ${OIDC_ISSUER_ID}             %{OIDC_ISSUER_ID=labs64io}
+# Reuse the already-resolvable gateway transport and select Keycloak's HTTPRoute
+# with Host. This works both on the host and inside the workspace devcontainer,
+# where keycloak.localhost is not necessarily present in /etc/hosts.
+${KEYCLOAK_BASE_URL}          %{KEYCLOAK_BASE_URL=${GATEWAY_BASE_URL}}
+${KEYCLOAK_ROUTE_HOST}        %{KEYCLOAK_ROUTE_HOST=keycloak.localhost}
+${KEYCLOAK_REALM}             %{KEYCLOAK_REALM=labs64io}
 ${OIDC_CLIENT_ID}             %{OIDC_CLIENT_ID=local-test}
 ${OIDC_CLIENT_SECRET}         %{OIDC_CLIENT_SECRET=local-test}
 
-# Optional static override for environments where mock-oidc isn't reachable (e.g. a
+# Optional static override for environments where the configured token provider isn't reachable (e.g. a
 # pre-provisioned CI service token). Prefer `Get OIDC Token` / `Create Session With Scope`
 # wherever a specific scope combination needs to be asserted.
 ${API_TOKEN}                  %{API_TOKEN=${EMPTY}}
@@ -42,12 +49,22 @@ ${AUTHPROXY_K8S_DEPLOYMENT}    %{AUTHPROXY_K8S_DEPLOYMENT=gateway-common}
 
 *** Keywords ***
 Get OIDC Token
-    [Documentation]    Request an M2M access token from mock-oidc for the given ``scope``.
-    ...                ``scope`` may be a named persona (``admin``, ``auditflow``, ``ecommerce``,
-    ...                ``no-access``) that maps to a curated, fixed scope set, or any other literal
-    ...                string (e.g. ``audit-event:read``), which mock-oidc echoes verbatim into the
-    ...                token's ``scope`` claim — letting a test mint exactly the scope it wants to
-    ...                assert against. DEV-ONLY provider; never point this at a non-local environment.
+    [Documentation]    Request an M2M access token carrying the requested scope/persona from
+    ...                the selected local identity provider (``mock`` or ``keycloak``).
+    ...                Both profiles preserve the same exact-scope and tenant-persona contract,
+    ...                so authz scenarios exercise identical assertions against either issuer.
+    [Arguments]    ${scope}
+    IF    '${IDENTITY_PROVIDER}' == 'mock'
+        ${token}=    Get Mock OIDC Token    ${scope}
+    ELSE IF    '${IDENTITY_PROVIDER}' == 'keycloak'
+        ${token}=    Get Keycloak OIDC Token    ${scope}
+    ELSE
+        Fail    Unsupported IDENTITY_PROVIDER '${IDENTITY_PROVIDER}'. Expected 'mock' or 'keycloak'.
+    END
+    RETURN    ${token}
+
+Get Mock OIDC Token
+    [Documentation]    Mint an exact-scope token from the lightweight local mock provider.
     [Arguments]    ${scope}
     ${data}=    Create Dictionary
     ...    grant_type=client_credentials
@@ -55,6 +72,41 @@ Get OIDC Token
     ...    client_secret=${OIDC_CLIENT_SECRET}
     ...    scope=${scope}
     ${response}=    POST    ${MOCK_OIDC_BASE_URL}/${OIDC_ISSUER_ID}/token    data=${data}
+    Response Status Should Be    ${response}    200
+    RETURN    ${response.json()}[access_token]
+
+Get Keycloak OIDC Token
+    [Documentation]    Mint an exact-scope token from the local Keycloak ``local-test`` client.
+    ...                Tenant personas use dedicated clients because tenant is an identity claim,
+    ...                while ordinary values are requested as optional client scopes. ``no-access``
+    ...                intentionally omits the OAuth scope parameter and receives an empty scope.
+    [Arguments]    ${scope}
+    ${client_id}=    Set Variable    ${OIDC_CLIENT_ID}
+    ${requested_scope}=    Set Variable    ${scope}
+    IF    '${scope}' == 'no-access'
+        ${requested_scope}=    Set Variable    ${EMPTY}
+    ELSE IF    '${scope}' == 'auditflow-regression'
+        ${client_id}=    Set Variable    auditflow-regression
+        ${requested_scope}=    Set Variable    ${EMPTY}
+    ELSE IF    '${scope}' == 'auditflow-regression-quota'
+        ${client_id}=    Set Variable    auditflow-regression-quota
+        ${requested_scope}=    Set Variable    ${EMPTY}
+    ELSE IF    '${scope}' == 'auditflow-tenant-2'
+        ${client_id}=    Set Variable    auditflow-tenant-2
+        ${requested_scope}=    Set Variable    ${EMPTY}
+    END
+    ${data}=    Create Dictionary
+    ...    grant_type=client_credentials
+    ...    client_id=${client_id}
+    ...    client_secret=${OIDC_CLIENT_SECRET}
+    IF    $requested_scope
+        Set To Dictionary    ${data}    scope=${requested_scope}
+    END
+    ${headers}=    Create Dictionary    Host=${KEYCLOAK_ROUTE_HOST}
+    ${response}=    POST
+    ...    ${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+    ...    data=${data}
+    ...    headers=${headers}
     Response Status Should Be    ${response}    200
     RETURN    ${response.json()}[access_token]
 
@@ -74,7 +126,7 @@ Create Authenticated Session
 
 Create Session With Scope
     [Documentation]    Open an authenticated HTTP session pointed at ``base_url``, using a
-    ...                freshly-minted mock-oidc token carrying exactly ``scope``. This is the
+    ...                freshly-minted token from the selected provider carrying exactly ``scope``. This is the
     ...                primary way authz tests assert allow/deny behavior for a specific scope.
     [Arguments]    ${alias}    ${base_url}    ${scope}
     ${token}=    Get OIDC Token    ${scope}

@@ -25,7 +25,7 @@ Covers `auditflow` and `payment-gateway` today. See `AGENTS.md` for how to exten
 labs64.io-tests/
 ├── requirements.txt                # Python dependencies
 ├── resources/                      # Shared Robot Framework resource files
-│   ├── common.resource             # HTTP session helpers, mock-oidc token minting, shared vars
+│   ├── common.resource             # HTTP sessions + mock/Keycloak exact-scope token minting
 │   ├── auditflow.resource          # AuditFlow-specific keywords (POST /audit/publish)
 │   └── payment_gateway.resource    # Payment Gateway-specific keywords
 ├── tests/
@@ -94,11 +94,25 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-You need a running Labs64.IO stack reachable through its gateway edge — either the [local k3d cluster](../labs64.io-helm-charts/DEVELOPERS.md) (`just up` from `labs64.io-helm-charts/`) or one of the other [Deployment Modes](../labs64.io-helm-charts/README.md#deployment-modes) (AWS QA/Staging/Prod, or your own BYO-infra cluster) with `gateway.localhost`-equivalent base URLs and a reachable `mock-oidc`-equivalent token endpoint (see [Targeting a different environment](#targeting-a-different-environment) below). `mock-oidc` is a **dev-only** OIDC provider that mints scoped M2M tokens on demand — the auth/authz tests use it to mint tokens with exactly the scope they want to assert against, so no manually-provisioned credentials are needed for local runs.
+You need a running Labs64.IO stack reachable through its gateway edge — either the [local k3d cluster](../labs64.io-helm-charts/DEVELOPERS.md) or another [Deployment Mode](../labs64.io-helm-charts/README.md#deployment-modes). Local runs support both identity profiles: lightweight `mock-oidc` and production-like Keycloak. Both mint exact-scope M2M tokens for the same auth/authz matrix, so switching provider does not weaken or duplicate the assertions.
 
 ## Running Tests
 
 Fastest path: `just` (see `justfile` — `just smoke`, `just regression`, `just test-all`, `just test-module auditflow`, `just log`, etc.; `just --list` for the full set). It wraps venv setup and the `robot` invocations below, writing output to `results/`. The rest of this section shows the underlying `robot` commands directly, for when you need a variation the justfile doesn't cover.
+
+From `labs64.io-workspace`, use the native profile commands against an already-running stack:
+
+```bash
+just mock smoke
+just mock regression
+just mock test
+just keycloak smoke
+just keycloak auth
+just keycloak regression
+just keycloak test
+```
+
+Profile reports are isolated under `results/mock/` and `results/keycloak/`.
 
 **All smoke tests (fast, every PR):**
 ```bash
@@ -183,7 +197,7 @@ Docker Desktop/devcontainers and Linux CI.
 
 ### Targeting a different environment
 
-Base URLs and the mock-oidc endpoint are resolved from environment variables (see `resources/common.resource` for the full list and defaults):
+Base URLs and the identity provider are resolved from environment variables (see `resources/common.resource` for the full list and defaults):
 
 ```bash
 GATEWAY_BASE_URL=https://staging.labs64.io \
@@ -191,7 +205,11 @@ MOCK_OIDC_BASE_URL=https://mock-oidc.staging.labs64.io \
 robot --include smoke tests/
 ```
 
-If `mock-oidc` isn't reachable in your target environment, set `API_TOKEN` to a pre-provisioned token instead — tests that don't need a specific scope combination fall back to it; scope-matrix tests in `authz.robot` require `mock-oidc` since they need multiple distinct scope combinations per suite.
+For the local Keycloak profile, set `IDENTITY_PROVIDER=keycloak`; the default transport reuses
+`GATEWAY_BASE_URL` with `Host: keycloak.localhost`, which also works from the workspace
+devcontainer. Override `KEYCLOAK_BASE_URL`, `KEYCLOAK_ROUTE_HOST`, `KEYCLOAK_REALM`,
+`OIDC_CLIENT_ID`, and `OIDC_CLIENT_SECRET` when targeting another environment. Its realm must
+provide the same exact-scope/tenant-persona contract as the local declarative realm.
 
 ## CI
 

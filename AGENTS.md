@@ -47,9 +47,16 @@ CI runs the same check as its `static-checks` job.
 
 All base URLs point at the Traefik/authproxy gateway (`http://gateway.localhost/<module>/api/v1`), never a backend port directly. Cerbos authorization is enforced at the gateway; backends trust gateway-supplied `X-Auth-*` headers and in the `local` profile may even fall back to a default tenant. Hitting a backend directly makes an authz test meaningless — it would pass or fail regardless of the token.
 
-## Minting tokens with `mock-oidc`
+## Minting provider-neutral test tokens
 
-`resources/common.resource` provides `Get OIDC Token` / `Create Session With Scope`, which call the local dev-only `mock-oidc` provider (`POST http://mock-oidc.localhost/labs64io/token`, `grant_type=client_credentials`). The `scope` form param is echoed verbatim into the JWT for any value that isn't one of the named personas (`admin`, `auditflow`, `ecommerce`, `no-access`) — so a test can mint a token carrying **exactly** the scope it wants to assert against (e.g. `audit-event:read` to prove it must NOT satisfy a route requiring `audit-event:write`). Prefer this over a single static `API_TOKEN` whenever a test needs to distinguish scopes.
+`resources/common.resource` provides `Get OIDC Token` / `Create Session With Scope` for both
+local identity profiles, selected by `IDENTITY_PROVIDER=mock|keycloak` (default: `mock`). The mock
+provider echoes literal scopes. Keycloak's declarative realm exposes the same contract through a
+`local-test` client with optional client scopes and dedicated clients for tenant personas
+(`auditflow-regression`, `auditflow-regression-quota`, `auditflow-tenant-2`). A test can therefore
+request **exactly** the scope set it needs (for example `audit-event:read`) and keep the same
+401/403/200 assertions under either issuer. Prefer this over a broad static `API_TOKEN` whenever a
+test must distinguish scopes.
 
 ## Structure per module
 
