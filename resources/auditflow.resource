@@ -14,10 +14,9 @@ ${AUDITFLOW_SESSION_ALIAS}    auditflow
 ${AUDITFLOW_WRITE_SCOPE}      audit-event:write
 ${AUDITFLOW_GATEWAY_PATH}     /auditflow/api/v1/audit/publish
 
-# Dedicated regression-test tenants (item 12), stamped by mock-oidc personas
+# Dedicated regression-test tenants (item 12), stamped by provider-neutral personas
 # `auditflow-regression` / `auditflow-regression-quota` (never t_mock, which every
-# other suite shares) — see overrides/mock-oidc/mock-oidc.yaml and
-# overrides/auditflow/values.local.yaml's `t_regression`/`t_regression_quota`.
+# other suite shares). Both mock OIDC and Keycloak implement the same persona contract.
 ${AUDITFLOW_REGRESSION_SCOPE}          auditflow-regression
 ${AUDITFLOW_REGRESSION_QUOTA_SCOPE}    auditflow-regression-quota
 ${AUDITFLOW_REGRESSION_SESSION}          auditflow-regression
