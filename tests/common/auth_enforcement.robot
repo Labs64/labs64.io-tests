@@ -24,6 +24,11 @@ auditflow POST /audit/publish rejects anonymous callers
     [Tags]    auditflow    smoke    auth    auth-enforcement    generated
     Protected Operation Should Reject Anonymous Access    ${AUDITFLOW_BASE_URL}    POST    /audit/publish
 
+auditflow POST /audit/publish/batch rejects anonymous callers
+    [Documentation]    publishEvents declares x-labs64.auth requiring a tenant and scope(s) audit-event:write. An unauthenticated call must be refused at the edge.
+    [Tags]    auditflow    smoke    auth    auth-enforcement    generated
+    Protected Operation Should Reject Anonymous Access    ${AUDITFLOW_BASE_URL}    POST    /audit/publish/batch
+
 payment-gateway GET /payment-providers rejects anonymous callers
     [Documentation]    listPaymentProviders declares x-labs64.auth requiring a tenant and scope(s) payment-provider:read. An unauthenticated call must be refused at the edge.
     [Tags]    payment-gateway    smoke    auth    auth-enforcement    generated

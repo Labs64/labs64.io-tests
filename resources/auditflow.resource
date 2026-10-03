@@ -1,9 +1,10 @@
 *** Settings ***
 Documentation    AuditFlow-specific keywords and variables.
-...              AuditFlow's public contract is a single endpoint, ``POST /audit/publish``
-...              (see auditflow-api/src/main/resources/openapi/openapi-audit-v1.yaml). AuditFlow
-...              is a router, not a system of record — it has no query API of its own, so these
-...              tests only ever assert against /audit/publish.
+...              AuditFlow's public contract is ``POST /audit/publish`` and its batch form
+...              ``POST /audit/publish/batch`` (see
+...              auditflow-api/src/main/resources/openapi/openapi-audit-v1.yaml). AuditFlow is a
+...              router, not a system of record — it has no query API of its own, so these tests
+...              only ever assert against the publish operations.
 Library          RequestsLibrary
 Library          Collections
 Library          String
@@ -47,6 +48,17 @@ Publish Audit Event
     ...    /audit/publish
     ...    json=${event}
     ...    headers=${headers}
+    ...    expected_status=any
+    RETURN    ${response}
+
+Publish Audit Event Batch
+    [Documentation]    POST ``{"events": [...]}`` to /audit/publish/batch on the given session alias.
+    [Arguments]    ${events}    ${alias}=${AUDITFLOW_SESSION_ALIAS}
+    ${body}=    Create Dictionary    events=${events}
+    ${response}=    POST On Session
+    ...    ${alias}
+    ...    /audit/publish/batch
+    ...    json=${body}
     ...    expected_status=any
     RETURN    ${response}
 

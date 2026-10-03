@@ -61,7 +61,7 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
           cache: pip
           cache-dependency-path: labs64.io-tests/requirements.txt
 
@@ -197,7 +197,7 @@ jobs:
       # --- Test suites: sequential against the shared cluster ---
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
           cache: pip
           cache-dependency-path: labs64.io-tests/requirements.txt
 
@@ -399,7 +399,7 @@ jobs:
       # --- Test suite ---
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
           cache: pip
           cache-dependency-path: labs64.io-tests/requirements.txt
 
