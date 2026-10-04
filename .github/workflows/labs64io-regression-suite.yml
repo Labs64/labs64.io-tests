@@ -163,11 +163,15 @@ jobs:
           repository: Labs64/labs64.io-helm-charts
           path: labs64.io-helm-charts
 
+      # --- Toolchain: the versions pinned in labs64.io-workspace/tool-versions.env ---
+      - uses: Labs64/labs64.io-workspace/.github/actions/setup-k8s-tools@v1
+        with:
+          k3d: "true"
+
       # --- Provision the one cluster every suite below runs against ---
       - name: Create k3d cluster
         run: |
           set -euo pipefail
-          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
           # Traefik is disabled in k3s: the umbrella brings its own. Bind its
           # loadbalancer straight to host :80 so the plain gateway.localhost /
           # mock-oidc.localhost base URLs above resolve with no port and no
@@ -175,11 +179,6 @@ jobs:
           k3d cluster create regression --agents 1 --wait \
             -p "80:80@loadbalancer" --k3s-arg "--disable=traefik@server:0"
 
-      - name: Install Helm 4
-        run: |
-          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
-          chmod 700 get_helm.sh
-          ./get_helm.sh
       - name: Install the published ecosystem chart
         # No LABS64_CHART override: this suite exercises what a consumer actually
         # gets (the published chart), not this repo's own working tree.
@@ -311,27 +310,15 @@ jobs:
           repository: Labs64/labs64.io-helm-charts
           path: labs64.io-helm-charts
 
-      # --- Toolchain: the same versions .devcontainer/post-create.sh installs ---
-      - name: Install Helm 4
-        run: |
-          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
-          chmod 700 get_helm.sh
-          ./get_helm.sh
-
-      - name: Install k3d, just, helmfile and the helm-diff plugin
-        run: |
-          set -euo pipefail
-          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh \
-            | sudo bash -s -- --to /usr/local/bin
-          HELMFILE_VERSION=1.7.4
-          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/v${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_linux_amd64.tar.gz" \
-            | tar -xz -C /tmp helmfile
-          sudo install -m 0755 /tmp/helmfile /usr/local/bin/helmfile
-          # helmfile apply renders a diff before every release; without this plugin it
-          # fails on the first one. No --verify=false: that flag doesn't exist on
-          helm plugin install https://github.com/databus23/helm-diff --version v3.15.11 --verify=false
-          k3d version && just --version && helmfile --version
+      # --- Toolchain: the versions pinned in labs64.io-workspace/tool-versions.env, i.e.
+      # exactly what .devcontainer/post-create.sh installs. helmfile apply renders a diff
+      # before every release, so the helm-diff plugin is required. ---
+      - uses: Labs64/labs64.io-workspace/.github/actions/setup-k8s-tools@v1
+        with:
+          helm-plugins: diff
+          helmfile: "true"
+          k3d: "true"
+          just: "true"
 
       # --- Provision: `just up`, step by step, on prebuilt images ---
       - name: Create the k3d cluster and local registry
