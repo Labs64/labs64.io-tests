@@ -53,11 +53,17 @@ Get OIDC Token
     ...                the selected local identity provider (``mock`` or ``keycloak``).
     ...                Both profiles preserve the same exact-scope and tenant-persona contract,
     ...                so authz scenarios exercise identical assertions against either issuer.
+    ...
+    ...                Minting is retried (3 attempts, 1s apart): the token request is an
+    ...                idempotent client_credentials POST, and the local IdP behind Traefik
+    ...                intermittently truncates a chunked response (~0.5% of requests,
+    ...                ``ChunkedEncodingError``), which otherwise fails one random test per run.
+    ...                The system under test is never retried — only identity-provider plumbing.
     [Arguments]    ${scope}
     IF    '${IDENTITY_PROVIDER}' == 'mock'
-        ${token}=    Get Mock OIDC Token    ${scope}
+        ${token}=    Wait Until Keyword Succeeds    3x    1s    Get Mock OIDC Token    ${scope}
     ELSE IF    '${IDENTITY_PROVIDER}' == 'keycloak'
-        ${token}=    Get Keycloak OIDC Token    ${scope}
+        ${token}=    Wait Until Keyword Succeeds    3x    1s    Get Keycloak OIDC Token    ${scope}
     ELSE
         Fail    Unsupported IDENTITY_PROVIDER '${IDENTITY_PROVIDER}'. Expected 'mock' or 'keycloak'.
     END
