@@ -200,8 +200,8 @@ Docker Desktop/devcontainers and Linux CI.
 Base URLs and the identity provider are resolved from environment variables (see `resources/common.resource` for the full list and defaults):
 
 ```bash
-GATEWAY_BASE_URL=https://staging.labs64.io \
-MOCK_OIDC_BASE_URL=https://mock-oidc.staging.labs64.io \
+GATEWAY_BASE_URL=https://gateway.example.com \
+MOCK_OIDC_BASE_URL=https://mock-oidc.example.com \
 robot --include smoke tests/
 ```
 
