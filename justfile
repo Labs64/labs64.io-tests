@@ -48,6 +48,8 @@ install:
 # $status from, not a guess; (2) written beside that output.xml, which survives if this terminal's
 # stdout is broken; (3) the HTML report opened automatically, pass or fail. Every test-running
 # recipe below delegates here instead of calling {{ROBOT}} directly.
+#
+# Run robot with a stdout-safe console, print the pass/fail count and open the HTML report
 _run *args: install
     #!/usr/bin/env bash
     set -uo pipefail
@@ -83,22 +85,22 @@ _run *args: install
 # --exclude known-bug: a documented, unresolved defect shouldn't block every PR.
 # It's excluded from regression too (see below) — target it directly with
 # `test-file`/`test-case` to check on it.
-# Fast, PR-gating subset across all modules (keep this one fast — see AGENTS.md)
+# Run the fast PR-gating subset across all modules
 smoke:
     @just _run --include smoke --exclude not-ga --exclude known-bug {{ALL_TESTS}}
 
-# Full functional regression, excluding quarantined flaky, not-yet-GA cases, and known bugs (nightly shape)
+# Run the full functional regression, excluding flaky, not-GA and known-bug cases (nightly shape)
 regression:
     @just _run --exclude flaky --exclude not-ga --exclude known-bug --exclude psp-stub {{ALL_TESTS}}
 
-# Alias for `regression`, kept for parity with the `test` recipe every other module justfile exposes
+# Run the regression suite (same as regression)
 test: regression
 
 # `robot --dryrun` resolves every keyword and `Resource` import without sending a single
 # request, so a test calling a keyword that does not exist fails here instead of surfacing
 # after a full provision as a test failure indistinguishable from a real regression. No tag
 # filter, because an excluded suite must still be sound.
-# Static suite validation — no cluster, seconds; same check CI's static-checks job runs
+# Validate all suites statically with robot --dryrun, without a cluster
 dryrun: install
     #!/usr/bin/env bash
     set -uo pipefail
@@ -111,16 +113,18 @@ dryrun: install
 # Targeted runs
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Auth/authz matrix only, across all modules
+# Run only the auth/authz matrix tests across all modules
 auth:
     @just _run --include auth --exclude not-ga --exclude known-bug {{ALL_TESTS}}
 
-# Local-k8s-only log-corroboration cases — self-skip unless local k3d is the active kubectl context
+# Run the log-corroboration cases for the local k3d cluster, which skip on any other kubectl context
 local-k8s:
     @just _run --include local-k8s-only {{ALL_TESTS}}
 
 # Start a blank host-side WireMock process. Provider suites register their versioned
 # mappings through the Admin API, so this also works when Docker cannot mount devcontainer paths.
+#
+# Start a blank WireMock process on the host for the PSP provider suites
 psp-stub-up:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -155,16 +159,18 @@ psp-stub-up:
     echo "PSP stub container did not become healthy" >&2
     exit 1
 
-# Stop the host-side WireMock process.
+# Stop the host-side WireMock process
 psp-stub-down:
     docker compose -f {{PSP_STUB_COMPOSE}} down
 
-# Follow WireMock logs.
+# Follow the WireMock logs
 psp-stub-logs:
     docker compose -f {{PSP_STUB_COMPOSE}} logs -f
 
 # Switch an already-running local k3d Payment Gateway deployment to the PSP-stub endpoint.
 # This is optional local orchestration; the Robot scenarios themselves remain environment-agnostic.
+#
+# Point the local Payment Gateway deployment at the host-side PSP stub
 test-up:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -211,7 +217,7 @@ test-up:
     just --justfile {{HELM_JUSTFILE}} payment-gateway-psp-stub-enable "$host_cidr" "$stub_url"
     trap - ERR INT TERM
 
-# Restore the normal Payment Gateway deployment first, then stop WireMock.
+# Restore the normal Payment Gateway deployment, then stop WireMock
 test-down:
     #!/usr/bin/env bash
     set -u
@@ -223,7 +229,7 @@ test-down:
     }
     exit "$status"
 
-# Show both sides of the local PSP test environment.
+# Show the WireMock and Payment Gateway state of the local PSP test setup
 test-status:
     #!/usr/bin/env bash
     set -u
@@ -249,6 +255,8 @@ test-status:
 
 # PSP integration scenarios. A selected PSP test fails when the stub is absent; it never
 # silently skips and turns a broken nightly setup green.
+#
+# Run the PSP integration scenarios against the stub
 test-psp:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -280,12 +288,14 @@ test-psp:
     echo "PSP stub Robot endpoint: $PSP_STUB_BASE_URL"
     just _run --include psp-stub {{ALL_TESTS}}
 
-# Backward-compatible short alias.
+# Run the PSP integration scenarios (same as test-psp)
 psp: test-psp
 
 # Run the normal regression first, then temporarily switch PG to the PSP stub, run only
 # provider scenarios, restore PG, and merge both Robot outputs into the top-level report.
 # TEST_ALL_OUTPUT_DIR can isolate the whole run (CI uses results/nightly).
+#
+# Run the regression, then the PSP-stub scenarios, and merge both Robot outputs into one report
 test-all: install
     #!/usr/bin/env bash
     set -uo pipefail
@@ -399,19 +409,19 @@ test-all: install
     if [ "$cleanup_status" -ne 0 ]; then exit "$cleanup_status"; fi
     exit "$rebot_status"
 
-# Run common tests (e2e, integration) + all known modules tests
+# Run the common tests (E2E, integration) and the tests of all known modules
 test-common:
     @just _run {{ALL_TESTS}}
 
-# Ordinary suite for one module; environment-specific PSP stub cases stay opt-in.
+# Run the ordinary suite for one module, leaving out the PSP stub cases
 test-module module:
     @just _run --exclude psp-stub ../labs64.io-{{module}}/tests/e2e/
 
-# One file: just test-file tests/auditflow/authz.robot
+# Run a single Robot file
 test-file file:
     @just _run {{file}}
 
-# One named test case within a file
+# Run one named test case from a file
 test-case name file:
     @just _run --test "{{name}}" {{file}}
 
@@ -419,12 +429,12 @@ test-case name file:
 # Results
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Serve the most recent run's HTML report (pass/fail summary) on localhost:8000
+# Serve the latest run's HTML report on localhost:8000
 report:
     @echo "Serving report at http://localhost:8000/report.html (Press Ctrl+C to stop)"
     python3 -m http.server -d results 8000
 
-# Serve the most recent run's HTML log — full request/response detail per keyword, read first on failure
+# Serve the latest run's HTML log, with full request and response detail, on localhost:8000
 log:
     @echo "Serving log at http://localhost:8000/log.html (Press Ctrl+C to stop)"
     python3 -m http.server -d results 8000
