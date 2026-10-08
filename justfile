@@ -12,7 +12,7 @@
 #   just log                → open the most recent run's log.html (read this first on failure)
 #
 # Targeting a different environment: env vars are forwarded as-is, e.g.
-#   GATEWAY_BASE_URL=https://staging.labs64.io just smoke
+#   GATEWAY_BASE_URL=https://gateway.example.com just smoke
 # See resources/common.resource for the full list of overridable variables.
 
 # Robot console output mode (dotted, verbose, quiet, none).
