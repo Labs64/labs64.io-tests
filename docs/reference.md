@@ -89,7 +89,7 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-You need a running Labs64.IO stack reachable through its gateway edge — either the [local k3d cluster](../labs64.io-helm-charts/DEVELOPERS.md) or another [Deployment Mode](../labs64.io-helm-charts/README.md#deployment-modes). Local runs support both identity profiles: lightweight `mock-oidc` and production-like Keycloak. Both mint exact-scope M2M tokens for the same auth/authz matrix, so switching provider does not weaken or duplicate the assertions.
+You need a running Labs64.IO stack reachable through its gateway edge — either the [local k3d cluster](https://github.com/Labs64/labs64.io-helm-charts/blob/master/DEVELOPERS.md) or another [Deployment Mode](https://github.com/Labs64/labs64.io-helm-charts/blob/master/docs/reference.md#deployment-modes). Local runs support both identity profiles: lightweight `mock-oidc` and production-like Keycloak. Both mint exact-scope M2M tokens for the same auth/authz matrix, so switching provider does not weaken or duplicate the assertions.
 
 ## Running Tests
 
