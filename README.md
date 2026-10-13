@@ -1,286 +1,190 @@
-<p align="center"><img src="https://raw.githubusercontent.com/Labs64/.github/master/assets/labs64-io-ecosystem.png" alt="Labs64.IO Ecosystem"></p>
-
 # Labs64.IO :: Tests
+
+**A black-box regression suite for the Labs64.IO platform, run through the gateway edge.**
+*Part of the [Labs64.IO Ecosystem](https://labs64.io): the cross-module safety net: every test exercises the gateway, never a backend port.*
 
 [![Regression Suite](https://github.com/Labs64/labs64.io-tests/actions/workflows/labs64io-regression-suite.yml/badge.svg)](https://github.com/Labs64/labs64.io-tests/actions/workflows/labs64io-regression-suite.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![📖 Documentation](https://img.shields.io/badge/📖-Documentation-AB6543.svg)](https://labs64.io/docs/index.html)
+[![📖 Documentation](https://img.shields.io/badge/📖-Documentation-AB6543.svg)](https://labs64.io/docs/development/contributing/)
 
-Integration & Regression Test Suite for the [Labs64.IO Ecosystem](https://labs64.io).
+<p align="center"><img src="docs/assets/tests-hero.svg" alt="Tests: evaluators, CI, contributors and AI agents run a Robot Framework suite against the gateway edge; it mints tokens, drives AuditFlow and Payment Gateway and reports pass or fail per scenario." width="880"></p>
 
-## Overview
+[**Get started**](#get-started) · [Features](#features) · [Architecture](#architecture) · [AI agents](#using-tests-with-ai-agents) · [Ecosystem](#the-labs64io-ecosystem) · [Documentation](https://labs64.io/docs/development/contributing/) · [labs64.io](https://labs64.io)
 
-Black-box API-edge regression suite for the [Labs64.IO](https://labs64.io) platform, built with [Robot Framework](https://robotframework.org/) and [`robotframework-requests`](https://github.com/MarketSquare/robotframework-requests).
+> [!NOTE]
+> The suite needs a running Labs64.IO stack reachable through its gateway edge. By default it expects the local k3d addresses (`http://gateway.localhost`); override them with environment variables for any other address.
 
-Every test exercises the **gateway edge** (Traefik + authproxy), never a backend port directly.
-Explicitly tagged `local-k8s-only` probes may additionally corroborate an otherwise unobservable
-auth or cross-service delivery effect through correlation-scoped pod logs; they never inspect
-RabbitMQ or a database. See `AGENTS.md` for the narrow exception rules.
+## Why Tests?
 
-Covers `auditflow` and `payment-gateway` today. See `AGENTS.md` for how to extend this to another module.
+A change in one module can break another, and the break shows up at the edge: a wrong scope, a missing route, a payment that never reaches the audit log. This suite checks the platform the way a client sees it:
 
-## Repository Structure
+1. **Edge only.** Every test goes through Traefik and the auth proxy, so authentication and authorization are always part of what is tested.
+2. **Real tokens.** Tokens are minted with exact scopes from the mock identity provider or Keycloak.
+3. **Tagged and filterable.** `smoke`, `regression`, `auth` and module tags let you run exactly the slice you need.
+
+## Get started
+
+Four ways in. Pick the one that matches what you have; each is complete on its own.
+
+```
+ 1  install.sh             2  Kubernetes             3  Local                  4  Source
+┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────────────┐
+│ Install a platform to │ │ Point the suite at    │ │ Create a venv,        │ │ Add a test or a       │
+│ test: gateway, auth,  │ │ your cluster's        │ │ install the           │ │ module, keep the      │
+│ AuditFlow and         │ │ gateway with          │ │ requirements, run     │ │ tags consistent,      │
+│ Payment Gateway       │ │ GATEWAY_BASE_URL      │ │ the smoke tests       │ │ contribute back       │
+├───────────────────────┤ ├───────────────────────┤ ├───────────────────────┤ ├───────────────────────┤
+│ needs  a cluster,     │ │ needs  a stack,       │ │ needs  Python 3.14    │ │ needs  Python, Robot  │
+│        kubectl, helm  │ │        Python 3.14    │ │                       │ │                       │
+│ time   ~5 minutes     │ │ time   ~10 minutes    │ │ time   ~3 minutes     │ │ time   a few minutes  │
+└───────────────────────┘ └───────────────────────┘ └───────────────────────┘ └───────────────────────┘
+ get a stack to test       test your cluster         run the suite             work on the code
+```
+
+Not sure? Run **1** to get a stack, then **3** to run the smoke tests against it.
+
+### 1. `install.sh`: the quick ecosystem start
+
+The suite tests a running platform, so first get one. One script installs the gateway, AuditFlow and Payment Gateway on any Kubernetes cluster, then proves it with a real request. No cluster? A throwaway one on your laptop is enough:
+
+```bash
+k3d cluster create labs64io-demo -p "8000:80@loadbalancer" --k3s-arg "--disable=traefik@server:0"   # optional
+
+curl -fsSL https://raw.githubusercontent.com/Labs64/labs64.io-helm-charts/master/install.sh -o install.sh
+bash install.sh
+```
+
+Press Enter three times to take the defaults. You finish with a gateway you can `curl`, interactive API docs and a working token flow:
+
+```text
+  PASS  Obtained a demo access token from mock-oidc
+  PASS  Published a demo audit event (HTTP 200) — first good request succeeded
+
+ Labs64.IO is ready.
+   Base URL:  http://localhost:8000
+   API docs:  http://localhost:8000/swagger-ui/
+```
+
+The suite defaults to the local k3d addresses (`http://gateway.localhost`, `http://mock-oidc.localhost`); for an installer-created stack set `GATEWAY_BASE_URL` and `MOCK_OIDC_BASE_URL` to the addresses it printed. The same script later runs `status`, `stop`, `start` and `uninstall`. This is an evaluation install with a demo identity provider: keep it on a local or private cluster. Details: [Quickstart](https://labs64.io/docs/getting-started/quickstart/) · [`install.sh`](https://github.com/Labs64/labs64.io-helm-charts/blob/master/install.sh).
+
+### 2. Kubernetes: on your own cluster
+
+Point the suite at any cluster's gateway edge with environment variables:
+
+```bash
+export GATEWAY_BASE_URL=https://gateway.example.com
+export KEYCLOAK_BASE_URL=https://keycloak.example.com   # when the stack uses Keycloak instead of mock OIDC
+```
+
+Tests that need pod logs are tagged `local-k8s-only` and are skipped or excluded elsewhere. See the [reference](docs/reference.md#targeting-a-different-environment) for every variable.
+
+### 3. Local: on your machine
+
+Needs Python 3.14:
+
+```bash
+git clone https://github.com/Labs64/labs64.io-tests.git && cd labs64.io-tests
+python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+robot --include smoke --exclude not-ga tests/         # the fast gate
+robot tests/auditflow/                                # one service
+```
+
+Robot writes `output.xml`, `log.html` and `report.html` to the current directory: open `log.html` first when a test fails.
+
+### 4. Source: build and change it
+
+Tests follow one convention: shared keywords in `resources/`, one folder per module under `tests/`, and tags for `smoke`, `regression`, `auth`, `flaky` and `not-ga`.
 
 ```
 labs64.io-tests/
-├── requirements.txt                # Python dependencies
-├── resources/                      # Shared Robot Framework resource files
-│   ├── common.resource             # HTTP sessions + mock/Keycloak exact-scope token minting
-│   ├── auditflow.resource          # AuditFlow-specific keywords (POST /audit/publish)
-│   └── payment_gateway.resource    # Payment Gateway-specific keywords
+├── resources/              # common.resource (sessions, token minting) + per-module keywords
 ├── tests/
-│   ├── common/
-│   │   └── e2e/
-│   │       └── payment_auditflow.robot # PG -> AuditFlow local-k8s delivery probe
-│   ├── auditflow/
-│   │   ├── smoke.robot             # happy path + 400 validation
-│   │   └── authz.robot             # auth/authz matrix — see P0 Defect Coverage below
-│   └── payment-gateway/
-│       ├── smoke.robot
-│       ├── payment_providers.robot # create/read/update/delete lifecycle (noop PSP)
-│       └── authz.robot             # auth/authz scope matrix
-├── scripts/
-│   ├── generate_auth_enforcement_suite.py  # generates tests/common/auth_enforcement.robot
-│   ├── mirror_edge_images.sh       # pull :edge images into the local k3d registry
-│   ├── robot_summary.py            # output.xml -> job summary (totals + failures by cause)
-│   └── wait_for_pods.sh            # CI readiness gate; fails fast on unrecoverable pods
-└── .github/workflows/
-    └── labs64io-regression-suite.yml        # GitHub Actions CI workflow
+│   ├── auditflow/          # smoke.robot · authz.robot · …
+│   ├── payment-gateway/    # smoke.robot · payment_providers.robot · authz.robot
+│   └── common/             # cross-module probes
+└── scripts/                # readiness gate, summaries, edge-image mirroring
 ```
 
-## Tag Taxonomy
+[`AGENTS.md`](AGENTS.md) explains how to add a module and the narrow rules for `local-k8s-only` probes.
 
-| Tag | Meaning | Runs where |
+### Where next?
+
+Everything below is in the [Tests documentation](https://labs64.io/docs/development/contributing/):
+
+| I want to… | Read |
+|---|---|
+| See every command, tag and environment variable | [`docs/reference.md`](docs/reference.md) |
+| Understand the platform under test | [Choose a deployment path](https://labs64.io/docs/getting-started/choose-a-deployment-path/) |
+| Contribute a test | [Contributing guide](https://labs64.io/docs/development/contributing/) |
+| Compare all the ways to run Labs64.IO | [Choose a deployment path](https://labs64.io/docs/getting-started/choose-a-deployment-path/) |
+
+## Features
+
+- **Gateway-edge only**: Traefik and the auth proxy are always in the path.
+- **Exact-scope tokens**: minted from mock OIDC or Keycloak per test, so authorization is really exercised.
+- **Auth matrix**: a generated suite checks every route against the scopes it should and should not accept.
+- **Module coverage**: AuditFlow, Payment Gateway and the cross-module audit delivery probe.
+- **Tags**: `smoke`, `regression`, `auth`, `flaky`, `not-ga`, `local-k8s-only`.
+- **CI-ready**: a nightly workflow and a readiness gate that fails fast on unrecoverable pods.
+
+## Architecture
+
+```
+  ┌────────────────────────────────────────────┐
+  │ Robot Framework suite   tests/ + resources/│
+  └──────────────┬──────────────┬──────────────┘
+                 │ mint token   │ HTTP
+        ┌────────▼─────┐   ┌────▼───────────────────────────────┐
+        │ mock OIDC or │   │ Gateway edge: Traefik + auth proxy │
+        │ Keycloak     │   └────┬───────────────────────┬───────┘
+        └──────────────┘        │                       │
+                       ┌────────▼───────┐      ┌────────▼────────┐
+                       │ AuditFlow      │      │ Payment Gateway │
+                       └────────────────┘      └─────────────────┘
+  results: output.xml · log.html · report.html · CI job summary
+```
+
+## Using Tests with AI agents
+
+Tests is the objective check an agent should run before and after touching any module.
+
+- **Pick the narrowest slice.** `robot --include smoke --exclude not-ga tests/` is the fast gate; `robot tests/<module>/` runs one service.
+- **Read `log.html` first.** It carries the full request and response for every failing keyword.
+- **Respect the edge rule.** New tests go through the gateway; the only exception is an explicitly tagged `local-k8s-only` probe.
+- **Working on the code with an agent?** [`AGENTS.md`](AGENTS.md) describes the conventions, tags and how to add a module.
+
+## The Labs64.IO Ecosystem
+
+Tests is one module of the [Labs64.IO Ecosystem](https://labs64.io); [every module is documented here](https://labs64.io/docs/).
+
+| Module | What it does | Link |
 |---|---|---|
-| `smoke` | Fast critical-path only | Every PR |
-| `regression` | Full functional coverage per service | Nightly + pre-release |
-| `contract` | Mirrors a path covered by Schemathesis | Informational |
-| `e2e` | Cross-service flows | Targeted / pre-release |
-| `critical` | Failure blocks a release | Always gating |
+| **AuditFlow** | Audit-event routing pipeline | [labs64.io-auditflow](https://github.com/Labs64/labs64.io-auditflow) |
+| **API Gateway** | Authenticating, policy-enforcing edge for all modules | [labs64.io-authproxy](https://github.com/Labs64/labs64.io-authproxy) |
+| **Payment Gateway** | One API over multiple payment providers | [labs64.io-payment-gateway](https://github.com/Labs64/labs64.io-payment-gateway) |
+| **Checkout** | Embeddable, brandable checkout | [labs64.io-checkout](https://github.com/Labs64/labs64.io-checkout) |
+| **Customer Portal** | Customer self-service UI | [labs64.io-customer-portal](https://github.com/Labs64/labs64.io-customer-portal) |
+| **Commons** | Shared Java and Python libraries | [labs64.io-commons](https://github.com/Labs64/labs64.io-commons) |
+| **Helm Charts** | Kubernetes deployment for every module | [labs64.io-helm-charts](https://github.com/Labs64/labs64.io-helm-charts) |
+| **Workspace** | Dev container and multi-repo tooling | [labs64.io-workspace](https://github.com/Labs64/labs64.io-workspace) |
+| **Tests** | Cross-module regression suite | [labs64.io-tests](https://github.com/Labs64/labs64.io-tests) |
+| **Docs** | Published documentation | [labs64.io-docs](https://github.com/Labs64/labs64.io-docs) |
+| **NetLicensing** | Licensing-as-a-Service: license and entitlement management | [netlicensing.io](https://netlicensing.io) |
+| **GuideChimp** | Interactive guided product tours | [labs64.com/guidechimp](https://www.labs64.com/guidechimp/) |
 
-| `flaky` | Quarantined — non-blocking | Nightly, excluded from gating |
-| `known-bug` | Documents a known, unresolved defect | Excluded from `smoke` and `regression`; target it directly via `test-file`/`test-case` to check on it |
-| `not-ga` | Targets a module whose images have never been published | Always excluded, kept for when it ships |
-| `auth` | Authentication / authorisation assertions | — |
-| `tenant-isolation` | Cross-tenant / cross-scope isolation scenarios | — |
-| `error-handling` | Error path / negative testing | — |
-| `psp-stub` | Requires the external PSP HTTP stub and a matching provider endpoint override | Targeted locally + nightly |
+## Contributing
 
-> `contract`, `critical`, and `flaky` are **reserved for future use** — no test currently carries
-> them, and that's not drift. `contract` is earmarked for tests that mirror a path Schemathesis
-> already covers (informational, not gating); `critical` for a case whose failure should always
-> block a release regardless of suite; `flaky` is for quarantining a genuinely flaky case without
-> deleting its coverage. The `e2e` tag is active for cross-service flows spanning more than one
-> module; environment-specific probes also carry a tag such as `local-k8s-only`.
->
-> `not-ga` **is** currently carried — by every Checkout case, generated and hand-written. No
-> *released* Checkout image exists (`labs64/checkout`, `labs64/checkout-ui` have only ever
-> published `:edge`), so `charts/labs64io-ecosystem` defaults `checkout.enabled` to `false`
-> and the PR gate's install.sh stack never serves it; a call there would be a `503 no
-> available server`, not a pass/fail signal about the module itself. `smoke`/`p0`/`regression`
-> all `--exclude not-ga` so that structural fact doesn't read as a permanent regression.
->
-> The nightly job is now the exception: it deploys Checkout's `:edge` image, so those cases
-> would actually run there. Dropping the tag is therefore a judgement call per job, not a
-> blocked one — remove it from a module's cases (and the `not_ga=True` module entry in
-> `scripts/generate_auth_enforcement_suite.py`, for the generated suite) once its suites are
-> confirmed green, and unconditionally the day its chart flips `enabled` to `true` by default.
-
-## Setup
-
-```bash
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-You need a running Labs64.IO stack reachable through its gateway edge — either the [local k3d cluster](../labs64.io-helm-charts/DEVELOPERS.md) or another [Deployment Mode](../labs64.io-helm-charts/README.md#deployment-modes). Local runs support both identity profiles: lightweight `mock-oidc` and production-like Keycloak. Both mint exact-scope M2M tokens for the same auth/authz matrix, so switching provider does not weaken or duplicate the assertions.
-
-## Running Tests
-
-Fastest path: `just` (see `justfile` — `just smoke`, `just regression`, `just test-all`, `just test-module auditflow`, `just log`, etc.; `just --list` for the full set). It wraps venv setup and the `robot` invocations below, writing output to `results/`. The rest of this section shows the underlying `robot` commands directly, for when you need a variation the justfile doesn't cover.
-
-From `labs64.io-workspace`, use the native profile commands against an already-running stack:
-
-```bash
-just mock smoke
-just mock regression
-just mock test
-just keycloak smoke
-just keycloak auth
-just keycloak regression
-just keycloak test
-```
-
-Profile reports are isolated under `results/mock/` and `results/keycloak/`.
-
-**All smoke tests (fast, every PR):**
-```bash
-robot --include smoke --exclude not-ga tests/
-```
-
-**A single service:**
-```bash
-robot tests/auditflow/
-robot tests/payment-gateway/
-```
-
-**A single file or test case:**
-```bash
-robot tests/auditflow/authz.robot
-robot --test "Publish With Correct Scope Is Allowed" tests/auditflow/authz.robot
-```
-
-**P0 blocker tests only (never skipped):**
-```bash
-robot --include smoke --exclude not-ga tests/
-```
-
-**Full regression, excluding flaky and not-yet-GA modules:**
-```bash
-robot --include regression --exclude flaky --exclude not-ga --exclude psp-stub tests/
-```
-
-**Auth/authz matrix only, across all services:**
-```bash
-robot --include auth tests/
-```
-
-Robot writes `output.xml`, `log.html`, and `report.html` to the current directory (or `--outputdir <dir>`) on every run — open `log.html` first when a test fails, it has the full request/response detail per keyword.
-
-### PSP stub tests
-
-The ordinary local regression assumes a normal Payment Gateway deployment and excludes
-`psp-stub` cases:
-
-```bash
-cd ../labs64.io-helm-charts
-just up
-
-cd ../labs64.io-tests
-just test
-```
-
-To switch the existing local Payment Gateway deployment to the host-side WireMock endpoint,
-run the targeted suite, and then restore the normal provider endpoint:
-
-```bash
-just test-up
-just test-status
-just test-psp
-just test-down
-```
-
-To run the complete local gate in one command, including both the normal regression and the
-PSP-stub scenarios, use:
-
-```bash
-just test-all
-```
-
-It runs the ordinary regression before changing PG, enables the stub only for the PSP phase,
-and restores the normal deployment even when setup or tests fail. Phase reports are written to
-`results/regression/` and `results/psp/`; the merged report remains at `results/report.html`.
-A final summary repeats every phase result and report path at the bottom of the terminal output,
-including `NOT RUN` for a phase that setup prevented from starting.
-
-`test-up` does not rebuild an image or recreate the cluster. It starts WireMock and applies a
-small Helm override that rolls only Payment Gateway. `test-down` reapplies the ordinary local
-values before stopping WireMock. The Robot tests are not Kubernetes-specific: `just test-psp`
-can target any already-prepared environment through the usual base URL variables.
-
-Provider-specific Robot scenarios and WireMock mappings remain in the provider module repository;
-this repository owns only the reusable WireMock process and test-environment lifecycle. `test-up`
-probes a host address from the k3d node itself and restricts PG egress to that single `/32` plus
-WireMock port 8090, so it does not depend on a particular k3d hosts-file layout and works in
-Docker Desktop/devcontainers and Linux CI.
-
-### Targeting a different environment
-
-Base URLs and the identity provider are resolved from environment variables (see `resources/common.resource` for the full list and defaults):
-
-```bash
-GATEWAY_BASE_URL=https://gateway.example.com \
-MOCK_OIDC_BASE_URL=https://mock-oidc.example.com \
-robot --include smoke tests/
-```
-
-For the local Keycloak profile, set `IDENTITY_PROVIDER=keycloak`; the default transport reuses
-`GATEWAY_BASE_URL` with `Host: keycloak.localhost`, which also works from the workspace
-devcontainer. Override `KEYCLOAK_BASE_URL`, `KEYCLOAK_ROUTE_HOST`, `KEYCLOAK_REALM`,
-`OIDC_CLIENT_ID`, and `OIDC_CLIENT_SECRET` when targeting another environment. Its realm must
-provide the same exact-scope/tenant-persona contract as the local declarative realm.
-
-## CI
-
-The GitHub Actions workflow (`.github/workflows/labs64io-regression-suite.yml`) runs three jobs:
-
-| Job | Trigger | Target it provisions |
-|---|---|---|
-| **Static Checks** | every PR, ~1 min | none — no cluster needed |
-| **Smoke** | every PR | ephemeral k3d + `bash install.sh install` (the **published** ecosystem chart, same pattern as `labs64io-published-chart-e2e.yml` in `labs64.io-helm-charts`) |
-| **Full Regression** | nightly, `release`, `workflow_dispatch` | k3d + local registry + **Helmfile** (`just up`), running each module's `:edge` image |
-
-**Static Checks** is the fastest way to find a broken test. It runs
-`scripts/generate_auth_enforcement_suite.py --check` (every operation declaring
-`x-labs64-auth` has a generated edge test) and `robot --dryrun` over every suite, which
-resolves each keyword and `Resource` import without sending a request — so a test calling a
-keyword that doesn't exist fails in seconds instead of surfacing an hour later as a test
-failure indistinguishable from a real regression. Run the same check locally with
-`just dryrun`.
-
-**Full Regression** deliberately provisions differently from the PR gate. Its item-12 suites
-(pipeline routing, condition operators, redaction, DLQ replay, quota enforcement, secretRef
-resolution) assert against fixtures that exist only in `labs64.io-helm-charts`'
-`overrides/auditflow/values.local.yaml` — the `t_regression` tenant and its deliberately
-failing probe pipelines, `t_regression_quota`'s tiny quota, and the global redaction rule.
-`install.sh`'s quickstart profile provisions only a `t_mock` demo tenant, so on that path
-every one of those cases fails `403 TENANT_NOT_PROVISIONED` no matter how healthy the code
-is. The Helmfile path is also the only one that applies each module's local override
-(central Cerbos PDP address, `env` secretRef resolver, gateway routes), and — because it
-creates the `k3d-labs64io` context — the only one where the `local-k8s-only` cases actually
-execute instead of self-skipping.
-
-### What nightly runs against
-
-Every module publishes `<image>:edge` to Docker Hub after a green master build — the
-`edge-image` job in each repo's CI, via `labs64.io-workspace`'s reusable
-`docker-publish.yml`. Nightly mirrors those tags into the k3d registry
-(`scripts/mirror_edge_images.sh`) as the `localhost:5005/<name>:latest` references the
-Helmfile local overrides pin, and deploys them. Nothing is built here: nightly exists to
-find integration failures *between* modules, and rebuilding eight images to do that would
-re-run work each module's CI already did while adding several more ways to go red for
-reasons that are not a regression.
-
-The mirror step writes every image's source digest to the job summary, so a red nightly
-says exactly which builds it ran against — `:edge` moves on every master push, so
-timestamps alone would not.
-
-If a module's `:edge` tag is missing, the step fails listing every missing image together
-with the workflow that publishes it, rather than deploying a half-mirrored stack of mixed
-vintages.
-
-Every job excludes `not-ga`; see the `not-ga` entry in [Tag Taxonomy](#tag-taxonomy). Note
-that Checkout and Customer Portal — which have never had a released image — now publish
-`:edge` too, so nightly does deploy them (the Helmfile app layer deploys them regardless,
-and an unpublished image would otherwise sit in `ImagePullBackOff`). Dropping `not-ga` from
-that job's filter is a one-line change once those suites are confirmed green.
-
-Every robot step writes a triage summary to the GitHub job summary via
-`scripts/robot_summary.py`: totals, failures grouped by cause, then the failing test list.
-A broken environment reads as one fat row ("39 × `TENANT_NOT_PROVISIONED`") rather than 39
-individual regressions, without downloading the `log.html` artifact.
-
-## P0 Defect Coverage
-
-| Defect class | Test file | Tag |
-|---|---|---|
-| Phantom JWT (auth gap between spec and implementation) | `tests/auditflow/authz.robot` | `regression` |
-
-## Adding, running, or auditing tests
-
-See the `test-suite-steward` skill (workspace-level `.agents/skills/test-suite-steward/`) — it covers where a new test belongs, the OpenAPI `x-labs64-auth`-driven authz matrix, how to run and interpret results, and a periodic suite-health audit (drift, coverage gaps, duplication, flaky handling).
+Contributions of all sizes are welcome. Fork, branch, run the checks described in [`AGENTS.md`](AGENTS.md), and open a pull request. If you are unsure whether something fits, open an issue first.
 
 ## License
 
 The core of the *Labs64.IO Ecosystem* is entirely open source and free forever. Community modules are licensed under [Apache License 2.0](LICENSE).
+
+---
+
+<p align="center">
+  <a href="https://labs64.io"><img alt="Labs64.IO" src="https://labs64.io/docs/assets/images/labs64-logo.png" width="110"></a><br>
+  <sub>Made by the <a href="https://labs64.io">Labs64</a> team and community.</sub>
+</p>
