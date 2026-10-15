@@ -8,6 +8,11 @@ on:
   release:
     types: [created] # item 12: full regression is also a release gate, not just nightly
 
+# Least privilege for the GITHUB_TOKEN of every job below: they only check repositories out.
+# Artifacts and the job summary use the runner's own credentials, not this token.
+permissions:
+  contents: read
+
 env:
   # All tests run through the gateway edge, never straight to a backend port.
   # Authorization is enforced at the gateway. mock-oidc mints scoped M2M tokens on
