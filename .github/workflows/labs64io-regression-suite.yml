@@ -135,6 +135,10 @@ jobs:
     env:
       LABS64_PROFILE: quickstart
       LABS64_YES: "1"
+      # install.sh points the gateway at mock-oidc's in-cluster name, and mock-oidc stamps tokens
+      # with the Host they were requested under: ask for them under that name (install.sh's own
+      # smoke does the same). Without it every token is rejected with 401 "Invalid issuer".
+      MOCK_OIDC_HOST_HEADER: mock-oidc.labs64io.svc.cluster.local:8080
     steps:
       - name: Check out test suite
         uses: actions/checkout@v7
@@ -238,6 +242,11 @@ jobs:
         run: |
           kubectl -n labs64io get events --sort-by=.lastTimestamp | tail -50 || true
           kubectl -n labs64io describe pods | tail -120 || true
+          # What each module and the gateway logged at WARN/ERROR during the run: a failing request
+          # is explained by the line next to it, which a plain tail of the logs rarely reaches.
+          kubectl -n labs64io logs -l app.kubernetes.io/part-of=Labs64.IO --since=30m \
+            --tail=2000 --prefix --all-containers 2>/dev/null \
+            | grep -E '"level":"(WARN|ERROR)"|Exception|ERROR|Invalid' | tail -200 || true
 
   # Runs manually, nightly, and on every GitHub release (item 12's "green in CI
   # on every release" — a scheduled-only run would not gate an actual release). Includes
@@ -424,3 +433,9 @@ jobs:
           done
           kubectl -n labs64io logs -l app.kubernetes.io/part-of=Labs64.IO \
             --tail=60 --prefix --all-containers 2>/dev/null | tail -300 || true
+          # WARN/ERROR lines of the last 30 minutes, whatever pod produced them: the tail above
+          # only holds the last minute of each container, after the failing request.
+          echo "=== WARN/ERROR since 30m ==="
+          kubectl -n labs64io logs -l app.kubernetes.io/part-of=Labs64.IO --since=30m \
+            --tail=2000 --prefix --all-containers 2>/dev/null \
+            | grep -E '"level":"(WARN|ERROR)"|Exception|ERROR|Invalid' | tail -200 || true

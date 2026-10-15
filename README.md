@@ -77,7 +77,7 @@ Press Enter three times to take the defaults. A few minutes later you should see
    API docs:  http://localhost:8000/swagger-ui/
 ```
 
-The suite defaults to the local k3d addresses (`http://gateway.localhost`, `http://mock-oidc.localhost`); for an installer-created stack set `GATEWAY_BASE_URL` and `MOCK_OIDC_BASE_URL` to the addresses it printed. The same script later runs `status`, `stop`, `start` and `uninstall`. This is an evaluation install with a demo identity provider: keep it on a local or private cluster. Details: [Quickstart](https://labs64.io/docs/getting-started/quickstart.html) · [`install.sh`](https://github.com/Labs64/labs64.io-helm-charts/blob/master/install.sh).
+The suite defaults to the local k3d addresses (`http://gateway.localhost`, `http://mock-oidc.localhost`); for an installer-created stack set `GATEWAY_BASE_URL` and `MOCK_OIDC_BASE_URL` to the addresses it printed, and `MOCK_OIDC_HOST_HEADER` to the in-cluster name the demo identity provider goes by (`mock-oidc.<namespace>.svc.cluster.local:8080`): the gateway accepts only tokens issued under that name. The same script later runs `status`, `stop`, `start` and `uninstall`. This is an evaluation install with a demo identity provider: keep it on a local or private cluster. Details: [Quickstart](https://labs64.io/docs/getting-started/quickstart.html) · [`install.sh`](https://github.com/Labs64/labs64.io-helm-charts/blob/master/install.sh).
 
 ### 2. Kubernetes: on your own cluster
 

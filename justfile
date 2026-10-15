@@ -215,7 +215,41 @@ test-up:
     host_cidr="$stub_ip/32"
     echo "PSP stub route from k3d: $stub_url ($host_cidr)"
     just --justfile {{HELM_JUSTFILE}} payment-gateway-psp-stub-enable "$host_cidr" "$stub_url"
+    just _payment-gateway-settled
     trap - ERR INT TERM
+
+# `kubectl rollout status` (the enable recipe's gate) answers as soon as the new pod is available
+# and the old one is on its way out. The scenarios start right after, and a request that lands in
+# that window reaches the superseded pod, or a service that still lists it, and fails as a 500 on
+# the first PayPal call. Wait for the state the scenarios assume: exactly one pod, Ready, none
+# terminating, and the Service pointing at only that pod.
+[private]
+_payment-gateway-settled:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ns="${LABS64IO_K8S_NAMESPACE:-labs64io}"
+    release="labs64io-payment-gateway"
+    for attempt in $(seq 1 90); do
+      pods=$(kubectl -n "$ns" get pods -l "app.kubernetes.io/instance=$release" -o json)
+      terminating=$(jq '[.items[] | select(.metadata.deletionTimestamp != null)] | length' <<<"$pods")
+      live=$(jq '[.items[] | select(.metadata.deletionTimestamp == null)] | length' <<<"$pods")
+      ready=$(jq '[.items[] | select(.metadata.deletionTimestamp == null)
+                   | select(any(.status.conditions[]?; .type == "Ready" and .status == "True"))] | length' <<<"$pods")
+      ready_ips=$(jq -r '[.items[] | select(.metadata.deletionTimestamp == null)
+                          | select(any(.status.conditions[]?; .type == "Ready" and .status == "True"))
+                          | .status.podIP] | sort | join(",")' <<<"$pods")
+      endpoint_ips=$(kubectl -n "$ns" get endpoints "$release" -o json 2>/dev/null \
+        | jq -r '[.subsets[]?.addresses[]?.ip] | sort | join(",")' || true)
+      if [ "$terminating" = "0" ] && [ "$live" = "1" ] && [ "$ready" = "1" ] && [ -n "$ready_ips" ] \
+         && [ "$ready_ips" = "$endpoint_ips" ]; then
+        echo "Payment Gateway settled: one ready pod ($ready_ips), none terminating, Service points at it"
+        exit 0
+      fi
+      sleep 2
+    done
+    echo "Payment Gateway did not settle after the PSP-stub rollout: live=$live ready=$ready terminating=$terminating ready_pods=[$ready_ips] endpoints=[$endpoint_ips]" >&2
+    kubectl -n "$ns" get pods -l "app.kubernetes.io/instance=$release" -o wide >&2 || true
+    exit 1
 
 # Restore the normal Payment Gateway deployment, then stop WireMock
 test-down:

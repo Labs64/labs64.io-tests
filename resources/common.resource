@@ -19,6 +19,13 @@ ${CORRELATION_ID_HEADER}      X-Correlation-ID
 # The local identity profile controls which OIDC provider mints M2M test tokens.
 ${IDENTITY_PROVIDER}           %{IDENTITY_PROVIDER=mock}
 ${MOCK_OIDC_BASE_URL}         %{MOCK_OIDC_BASE_URL=http://mock-oidc.localhost}
+# mock-oidc names itself after the Host header of the token request, and the gateway accepts only
+# tokens whose issuer it was configured with (strict `iss` validation). The Helmfile profile
+# configures http://mock-oidc.localhost/<issuer>, which is what the default request produces. The
+# published-chart install (install.sh) configures the in-cluster name instead, so there the request
+# must carry that name as Host: set this to e.g. mock-oidc.labs64io.svc.cluster.local:8080. Empty
+# (the default) sends no override.
+${MOCK_OIDC_HOST_HEADER}      %{MOCK_OIDC_HOST_HEADER=${EMPTY}}
 ${OIDC_ISSUER_ID}             %{OIDC_ISSUER_ID=labs64io}
 # Reuse the already-resolvable gateway transport and select Keycloak's HTTPRoute
 # with Host. This works both on the host and inside the workspace devcontainer,
@@ -77,7 +84,11 @@ Get Mock OIDC Token
     ...    client_id=${OIDC_CLIENT_ID}
     ...    client_secret=${OIDC_CLIENT_SECRET}
     ...    scope=${scope}
-    ${response}=    POST    ${MOCK_OIDC_BASE_URL}/${OIDC_ISSUER_ID}/token    data=${data}
+    ${headers}=    Create Dictionary
+    IF    $MOCK_OIDC_HOST_HEADER
+        Set To Dictionary    ${headers}    Host=${MOCK_OIDC_HOST_HEADER}
+    END
+    ${response}=    POST    ${MOCK_OIDC_BASE_URL}/${OIDC_ISSUER_ID}/token    data=${data}    headers=${headers}
     Response Status Should Be    ${response}    200
     RETURN    ${response.json()}[access_token]
 
