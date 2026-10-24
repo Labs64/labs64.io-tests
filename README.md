@@ -9,7 +9,7 @@
 
 <p align="center"><img src="docs/assets/tests-hero.svg" alt="Tests: A route-by-caller matrix of expected status codes: the Robot Framework suite calls every route through the gateway with real tokens and checks that each 2xx, 401 and 403 matches, 36 of 36." width="880"></p>
 
-[**Get started**](https://labs64.io/docs/development/regression-tests.html) · [Features](#features) · [AI agents](#using-tests-with-ai-agents) · [Ecosystem](#the-labs64io-ecosystem) · [Documentation](https://labs64.io/docs/development/contributing.html) · [labs64.io](https://labs64.io)
+[**Get started**](https://labs64.io/docs/development/regression-tests.html) · [Features](#features) · [AI agents](#using-it-with-ai-agents) · [Ecosystem](#the-labs64io-ecosystem) · [Documentation](https://labs64.io/docs/development/contributing.html) · [labs64.io](https://labs64.io)
 
 > [!NOTE]
 > The suite needs a running Labs64.IO stack reachable through its gateway edge. By default it expects the local k3d addresses (`http://gateway.localhost`); override them with environment variables for any other address.
@@ -53,14 +53,9 @@ A change in one module can break another, and the break shows up at the edge: a 
 
 Runs are tagged `smoke`, `regression`, `auth`, `flaky`, `not-ga` and `local-k8s-only`, so you can pick exactly the slice you need.
 
-## Using Tests with AI agents
+## Using it with AI agents
 
-Tests is the objective check an agent should run before and after touching any module.
-
-- **Pick the narrowest slice.** `robot --include smoke --exclude not-ga tests/` is the fast gate; `robot tests/<module>/` runs one service.
-- **Read `log.html` first.** It carries the full request and response for every failing keyword.
-- **Respect the edge rule.** New tests go through the gateway; the only exception is an explicitly tagged `local-k8s-only` probe.
-- **Working on the code with an agent?** [`AGENTS.md`](AGENTS.md) describes the conventions, tags and how to add a module.
+Run the narrowest slice of the suite before and after touching a module. The [guide for AI agents](https://labs64.io/docs/introduction/ai-agents.html) covers authentication, retries and errors across all modules. Working on this repository with an agent? [`AGENTS.md`](AGENTS.md) describes the conventions, tags and how to add a module.
 
 ## The Labs64.IO Ecosystem
 
