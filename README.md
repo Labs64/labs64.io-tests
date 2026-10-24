@@ -9,7 +9,7 @@
 
 <p align="center"><img src="docs/assets/tests-hero.svg" alt="Tests: A route-by-caller matrix of expected status codes: the Robot Framework suite calls every route through the gateway with real tokens and checks that each 2xx, 401 and 403 matches, 36 of 36." width="880"></p>
 
-[**Get started**](#get-started) · [Features](#features) · [Architecture](#architecture) · [AI agents](#using-tests-with-ai-agents) · [Ecosystem](#the-labs64io-ecosystem) · [Documentation](https://labs64.io/docs/development/contributing.html) · [labs64.io](https://labs64.io)
+[**Get started**](https://labs64.io/docs/development/regression-tests.html) · [Features](#features) · [AI agents](#using-tests-with-ai-agents) · [Ecosystem](#the-labs64io-ecosystem) · [Documentation](https://labs64.io/docs/development/contributing.html) · [labs64.io](https://labs64.io)
 
 > [!NOTE]
 > The suite needs a running Labs64.IO stack reachable through its gateway edge. By default it expects the local k3d addresses (`http://gateway.localhost`); override them with environment variables for any other address.
@@ -33,107 +33,6 @@ A change in one module can break another, and the break shows up at the edge: a 
 - You need unit tests for a module: those live in each module's repository.
 - You have no running stack: the suite exercises a live gateway, so it needs one.
 
-## Get started
-
-Four ways in. Pick the one that matches what you have; each is complete on its own.
-
-```
- 1  install.sh             2  Kubernetes             3  Local                  4  Source
-┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────────────┐
-│ Install a platform to │ │ Point the suite at    │ │ Create a venv,        │ │ Add a test or a       │
-│ test: gateway, auth,  │ │ your cluster's        │ │ install the           │ │ module, keep the      │
-│ AuditFlow and         │ │ gateway with          │ │ requirements, run     │ │ tags consistent,      │
-│ Payment Gateway       │ │ GATEWAY_BASE_URL      │ │ the smoke tests       │ │ contribute back       │
-├───────────────────────┤ ├───────────────────────┤ ├───────────────────────┤ ├───────────────────────┤
-│ needs  a cluster,     │ │ needs  a stack,       │ │ needs  Python 3.14    │ │ needs  Python, Robot  │
-│        kubectl, helm  │ │        Python 3.14    │ │                       │ │                       │
-│ time   ~5 minutes     │ │ time   ~10 minutes    │ │ time   ~3 minutes     │ │ time   a few minutes  │
-└───────────────────────┘ └───────────────────────┘ └───────────────────────┘ └───────────────────────┘
- get a stack to test       test your cluster         run the suite             work on the code
-```
-
-Not sure? Run **1** to get a stack, then **3** to run the smoke tests against it.
-
-### 1. `install.sh`: the quick ecosystem start
-
-The suite tests a running platform, so first get one. One script installs the gateway, AuditFlow and Payment Gateway on any Kubernetes cluster, then proves it with a real request.
-
-```bash
-# No cluster yet? A throwaway one needs only Docker and k3d:
-k3d cluster create labs64io-demo -p "8000:80@loadbalancer" --k3s-arg "--disable=traefik@server:0"
-
-curl -fsSL https://raw.githubusercontent.com/Labs64/labs64.io-helm-charts/master/install.sh -o install.sh
-bash install.sh
-```
-
-Press Enter three times to take the defaults. A few minutes later you should see:
-
-```text
-  PASS  Obtained a demo access token from mock-oidc
-  PASS  Published a demo audit event (HTTP 200) — first good request succeeded
-
- Labs64.IO is ready.
-   Base URL:  http://localhost:8000
-   API docs:  http://localhost:8000/swagger-ui/
-```
-
-The suite defaults to the local k3d addresses (`http://gateway.localhost`, `http://mock-oidc.localhost`); for an installer-created stack set `GATEWAY_BASE_URL` and `MOCK_OIDC_BASE_URL` to the addresses it printed, and `MOCK_OIDC_HOST_HEADER` to the in-cluster name the demo identity provider goes by (`mock-oidc.<namespace>.svc.cluster.local:8080`): the gateway accepts only tokens issued under that name. The same script later runs `status`, `stop`, `start` and `uninstall`. This is an evaluation install with a demo identity provider: keep it on a local or private cluster. Details: [Quickstart](https://labs64.io/docs/getting-started/quickstart.html) · [`install.sh`](https://github.com/Labs64/labs64.io-helm-charts/blob/master/install.sh).
-
-### 2. Kubernetes: on your own cluster
-
-Point the suite at any cluster's gateway edge with environment variables:
-
-```bash
-export GATEWAY_BASE_URL=https://gateway.example.com
-export KEYCLOAK_BASE_URL=https://keycloak.example.com   # when the stack uses Keycloak instead of mock OIDC
-```
-
-Tests that need pod logs are tagged `local-k8s-only` and are skipped or excluded elsewhere. See the [reference](docs/reference.md#targeting-a-different-environment) for every variable.
-
-### 3. Local: on your machine
-
-Needs Python 3.14:
-
-```bash
-git clone https://github.com/Labs64/labs64.io-tests.git && cd labs64.io-tests
-python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-robot --include smoke --exclude not-ga tests/         # the fast gate
-robot tests/auditflow/                                # one service
-```
-
-Robot writes `output.xml`, `log.html` and `report.html` to the current directory: open `log.html` first when a test fails.
-
-### 4. Source: build and change it
-
-Tests follow one convention: shared keywords in `resources/`, one folder per module under `tests/`, and tags for `smoke`, `regression`, `auth`, `flaky` and `not-ga`.
-
-```
-labs64.io-tests/
-├── resources/              # common.resource (sessions, token minting) + per-module keywords
-├── tests/
-│   ├── auditflow/          # smoke.robot · authz.robot · …
-│   ├── payment-gateway/    # smoke.robot · payment_providers.robot · authz.robot
-│   └── common/             # cross-module probes
-└── scripts/                # readiness gate, summaries, edge-image mirroring
-```
-
-[`AGENTS.md`](AGENTS.md) explains how to add a module and the narrow rules for `local-k8s-only` probes.
-
-### Where next?
-
-Everything below is in the [Tests documentation](https://labs64.io/docs/development/contributing.html):
-
-| I want to… | Read |
-|---|---|
-| See every command, tag and environment variable | [`docs/reference.md`](docs/reference.md) |
-| Understand the platform under test | [Choose a deployment path](https://labs64.io/docs/getting-started/choose-a-deployment-path.html) |
-| Contribute a test | [Contributing guide](https://labs64.io/docs/development/contributing.html) |
-| Compare all the ways to run Labs64.IO | [Choose a deployment path](https://labs64.io/docs/getting-started/choose-a-deployment-path.html) |
-
-Something not working? [Troubleshooting your first run](https://labs64.io/docs/getting-started/troubleshooting.html) covers the usual suspects, and you are always welcome to [open an issue](https://github.com/Labs64/labs64.io-tests/issues).
-
 ## Features
 
 - **Gateway-edge only**: Traefik and the auth proxy are always in the path.
@@ -142,23 +41,6 @@ Something not working? [Troubleshooting your first run](https://labs64.io/docs/g
 - **Module coverage**: AuditFlow, Payment Gateway and the cross-module audit delivery probe.
 - **Tags**: `smoke`, `regression`, `auth`, `flaky`, `not-ga`, `local-k8s-only`.
 - **CI-ready**: a nightly workflow and a readiness gate that fails fast on unrecoverable pods.
-
-## Architecture
-
-```
-  ┌────────────────────────────────────────────┐
-  │ Robot Framework suite   tests/ + resources/│
-  └──────────────┬──────────────┬──────────────┘
-                 │ mint token   │ HTTP
-        ┌────────▼─────┐   ┌────▼───────────────────────────────┐
-        │ mock OIDC or │   │ Gateway edge: Traefik + auth proxy │
-        │ Keycloak     │   └────┬───────────────────────┬───────┘
-        └──────────────┘        │                       │
-                       ┌────────▼───────┐      ┌────────▼────────┐
-                       │ AuditFlow      │      │ Payment Gateway │
-                       └────────────────┘      └─────────────────┘
-  results: output.xml · log.html · report.html · CI job summary
-```
 
 ## What it covers
 
