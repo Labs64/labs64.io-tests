@@ -31,7 +31,7 @@ each module's `authz.robot`.
 
 ## Running tests
 
-`just` wraps the `robot` invocations documented in `docs/reference.md` (venv setup, tag filters, output
+`just` wraps the `robot` invocations documented in `README.md` (venv setup, tag filters, output
 to `results/`) — `just` lists every recipe by group (`tests`, `psp stub`, `quality gates`); `just smoke`,
 `just regression`, `just test-module <name>` and `just open-log` are the common ones. From the workspace the same
 recipes are `just tests <recipe>`. It's a thin wrapper, not a framework layer: every recipe still shells out to plain
@@ -74,9 +74,9 @@ Don't create a file per HTTP verb or per tiny variation — group related test c
 
 ## Tag taxonomy
 
-See `docs/reference.md` (Tag Taxonomy) for the full table. The tags that matter most when writing a new test: `smoke` (PR-gating, keep fast and few), `regression` (full suite), `auth`/`tenant-isolation` (authz matrix cases). Every test needs at least one of `smoke` or `regression`.
+See `README.md` for the full table. The tags that matter most when writing a new test: `smoke` (PR-gating, keep fast and few), `regression` (full suite), `auth`/`tenant-isolation` (authz matrix cases). Every test needs at least one of `smoke` or `regression`.
 
-Tag every case for a module whose images have never been published `not-ga` (currently Checkout — see the Tag Taxonomy note in `docs/reference.md`), so `smoke`/`p0`/`regression` can `--exclude not-ga` instead of gating on a 503 that no fix can turn green. For the generated `tests/common/auth_enforcement.robot`, set `not_ga=True` on the module's entry in `scripts/generate_auth_enforcement_suite.py` and regenerate — don't hand-edit the generated file.
+Tag every case for a module whose images have never been published `not-ga` (currently Checkout — see `README.md`'s Tag Taxonomy note), so `smoke`/`p0`/`regression` can `--exclude not-ga` instead of gating on a 503 that no fix can turn green. For the generated `tests/common/auth_enforcement.robot`, set `not_ga=True` on the module's entry in `scripts/generate_auth_enforcement_suite.py` and regenerate — don't hand-edit the generated file.
 
 ## Adding a new module
 
@@ -89,7 +89,7 @@ Tag every case for a module whose images have never been published `not-ga` (cur
    the module ships a container image, add it to `scripts/mirror_edge_images.sh` and give
    its CI an `edge-image` job (`mode: edge`, gated on a green master build) — the nightly
    job deploys `:edge` images and builds nothing.
-5. Add the module to `docs/reference.md`'s repository structure and P0 coverage table if applicable.
+5. Add the module to `README.md`'s repository structure and P0 coverage table if applicable.
 
 ## Local-only pod-log corroboration (explicit exception)
 
