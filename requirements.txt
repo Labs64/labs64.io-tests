@@ -1,2 +1,3 @@
 robotframework>=7.5
 robotframework-requests>=0.9.7
+PyYAML>=6.0.3
