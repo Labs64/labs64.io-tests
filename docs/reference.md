@@ -93,21 +93,19 @@ You need a running Labs64.IO stack reachable through its gateway edge — either
 
 ## Running Tests
 
-Fastest path: `just` (see `justfile` — `just smoke`, `just regression`, `just test-all`, `just test-module auditflow`, `just log`, etc.; `just --list` for the full set). It wraps venv setup and the `robot` invocations below, writing output to `results/`. The rest of this section shows the underlying `robot` commands directly, for when you need a variation the justfile doesn't cover.
+Fastest path: `just` (see `justfile` — `just smoke`, `just regression`, `just test`, `just test-module auditflow`, `just open-log`, etc.; `just --list` for the full set). It wraps venv setup and the `robot` invocations below, writing output to `results/`. The rest of this section shows the underlying `robot` commands directly, for when you need a variation the justfile doesn't cover.
 
-From `labs64.io-workspace`, use the native profile commands against an already-running stack:
+From `labs64.io-workspace`, the same suites run against the already-running local stack, with the identity provider it
+has installed (mock OIDC or Keycloak, detected from the cluster):
 
 ```bash
-just mock smoke
-just mock regression
-just mock test
-just keycloak smoke
-just keycloak auth
-just keycloak regression
-just keycloak test
+just smoke
+just regression
+just test
+just tests test-auth        # any recipe of this repository: just tests <recipe>
 ```
 
-Profile reports are isolated under `results/mock/` and `results/keycloak/`.
+Against another stack, name its provider: `IDENTITY_PROVIDER=keycloak just smoke`.
 
 **All smoke tests (fast, every PR):**
 ```bash
@@ -160,17 +158,17 @@ To switch the existing local Payment Gateway deployment to the host-side WireMoc
 run the targeted suite, and then restore the normal provider endpoint:
 
 ```bash
-just test-up
-just test-status
+just enable-psp-stub
+just show-psp-stub
 just test-psp
-just test-down
+just disable-psp-stub
 ```
 
 To run the complete local gate in one command, including both the normal regression and the
 PSP-stub scenarios, use:
 
 ```bash
-just test-all
+just test
 ```
 
 It runs the ordinary regression before changing PG, enables the stub only for the PSP phase,
@@ -179,13 +177,13 @@ and restores the normal deployment even when setup or tests fail. Phase reports 
 A final summary repeats every phase result and report path at the bottom of the terminal output,
 including `NOT RUN` for a phase that setup prevented from starting.
 
-`test-up` does not rebuild an image or recreate the cluster. It starts WireMock and applies a
-small Helm override that rolls only Payment Gateway. `test-down` reapplies the ordinary local
+`enable-psp-stub` does not rebuild an image or recreate the cluster. It starts WireMock and applies a
+small Helm override that rolls only Payment Gateway. `disable-psp-stub` reapplies the ordinary local
 values before stopping WireMock. The Robot tests are not Kubernetes-specific: `just test-psp`
 can target any already-prepared environment through the usual base URL variables.
 
 Provider-specific Robot scenarios and WireMock mappings remain in the provider module repository;
-this repository owns only the reusable WireMock process and test-environment lifecycle. `test-up`
+this repository owns only the reusable WireMock process and test-environment lifecycle. `enable-psp-stub`
 probes a host address from the k3d node itself and restricts PG egress to that single `/32` plus
 WireMock port 8090, so it does not depend on a particular k3d hosts-file layout and works in
 Docker Desktop/devcontainers and Linux CI.
