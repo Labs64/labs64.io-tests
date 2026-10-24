@@ -18,8 +18,8 @@ Every test must map to an operation that actually exists in the module's OpenAPI
 
 `tests/common/auth_enforcement.robot` is **generated** by `scripts/generate_auth_enforcement_suite.py`
 from every module's `x-labs64-auth`, one case per protected operation, each calling the operation at
-the gateway edge with no credentials and asserting 401/403. Regenerate and commit after any spec
-change; CI runs the generator with `--check` and fails when the committed suite has drifted — an
+the gateway edge with no credentials and asserting 401/403. Regenerate (`just generate-auth-suite`) and commit
+after any spec change; CI runs `just check-auth-suite`, which fails when the committed suite has drifted — an
 operation that declares `x-labs64-auth` without a generated test is precisely the gap this catches.
 
 This is the edge half of the guarantee. Each backend separately proves it fails closed in its own
@@ -32,16 +32,18 @@ each module's `authz.robot`.
 ## Running tests
 
 `just` wraps the `robot` invocations documented in `README.md` (venv setup, tag filters, output
-to `results/`) — `just --list` for the full set, `just smoke` / `just regression` / `just
-test-module <name>` / `just log` for the common ones. It's a thin wrapper, not a framework layer:
-every recipe still shells out to plain `robot` — see "What NOT to do" below.
+to `results/`) — `just` lists every recipe by group (`tests`, `psp stub`, `quality gates`); `just smoke`,
+`just regression`, `just test-module <name>` and `just open-log` are the common ones. From the workspace the same
+recipes are `just tests <recipe>`. It's a thin wrapper, not a framework layer: every recipe still shells out to plain
+`robot` — see "What NOT to do" below. The justfile follows the ecosystem convention (labs64.io-workspace
+`docs/justfiles.md`): a new recipe goes in `just/<group>.just`.
 
-Run `just dryrun` before claiming a suite change works. It is `robot --dryrun` over every
-suite: no cluster, no requests, seconds — and it resolves every keyword and `Resource` import,
-which is the check that catches a test calling a keyword no resource file defines. That has
+Run `just ci` before claiming a suite change works: it is what the pull-request check (`static-checks`) runs, step for
+step. It checks the generated auth-enforcement suite (`just check-auth-suite`) and runs `just dryrun`, which is
+`robot --dryrun` over every suite: no cluster, no requests, seconds — and it resolves every keyword and `Resource`
+import, which is the check that catches a test calling a keyword no resource file defines. That has
 shipped here before (`payment_flow.robot` against `resources/payment_gateway.resource`) and
 cost a full nightly provision to discover, as two failures indistinguishable from real ones.
-CI runs the same check as its `static-checks` job.
 
 ## Gateway edge only
 

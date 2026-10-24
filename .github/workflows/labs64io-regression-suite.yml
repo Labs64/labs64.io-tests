@@ -70,14 +70,18 @@ jobs:
           cache: pip
           cache-dependency-path: labs64.io-tests/requirements.txt
 
-      - name: Install Robot Framework and libraries
-        run: pip install -r requirements.txt
+      - uses: Labs64/labs64.io-workspace/.github/actions/setup-k8s-tools@v1
+        with:
+          helm: "false"
+          just: "true"
 
+      # The recipes of `just ci` (just/quality-gates.just), one per step, so a local run checks exactly this. Both
+      # install Robot Framework into the suite's virtualenv themselves (just install-venv).
       - name: Every protected operation has a generated edge test
         # Roadmap item 2, step 3: an operation that declares x-labs64-auth without a
         # generated test must break the build — silence must not read as success.
         # Regenerates from the module specs and fails if the committed suite differs.
-        run: python scripts/generate_auth_enforcement_suite.py --check
+        run: just check-auth-suite
 
       - name: Dry run — every keyword and resource import resolves
         # `robot --dryrun` parses and resolves every suite without executing a single
@@ -86,23 +90,9 @@ jobs:
         # 20-minute provision, as a test failure indistinguishable from a real one —
         # this suite has shipped exactly that (payment_flow.robot calling keywords that
         # `resources/payment_gateway.resource` never defined). No `--exclude`: a suite
-        # excluded from execution must still be syntactically sound.
-        run: |
-          robot \
-            --dryrun \
-            --exclude not-ga \
-            --outputdir results/dryrun \
-            --output output.xml \
-            --log log.html \
-            --report report.html \
-            tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/
-
-      - name: Summarise dry run
-        if: ${{ !cancelled() }}
-        run: |
-          python scripts/robot_summary.py results/dryrun/output.xml \
-            --title "Dry run (static suite validation)" \
-            --artifact dryrun-report
+        # excluded from execution must still be syntactically sound. The summary (with the
+        # artifact hint) is written even when the dry run fails.
+        run: just dryrun --artifact dryrun-report
 
       - uses: actions/upload-artifact@v7
         if: failure()
@@ -275,7 +265,7 @@ jobs:
   # image in the job summary, so a red nightly names what it ran against.
   #
   # That includes checkout and customer-portal, which have no released image: their
-  # CI now publishes `:edge` too, so `install-all-apps` can deploy them instead of
+  # CI now publishes `:edge` too, so `install-apps` can deploy them instead of
   # leaving two permanently ImagePullBackOff-ing releases. Their test suites stay
   # excluded via `not-ga`; flipping that is a follow-up now that this job serves them.
   #
@@ -344,7 +334,7 @@ jobs:
         # `local-k8s-only` tests gate on, so those cases execute here instead of
         # silently skipping.
         working-directory: labs64.io-helm-charts
-        run: just cluster-up
+        run: just start-cluster
 
       - name: Mirror the :edge images into the local registry
         # Pulls every module's :edge tag — what its own CI pushed after its last
@@ -360,11 +350,11 @@ jobs:
         run: |
           set -euo pipefail
           just generate-secrets
-          just repo-update
+          just update-repos
           just install-tools
 
       - name: Wait for core tools
-        # `just up` runs install-tools and install-all-apps back to back, but
+        # `just up` runs install-tools and install-apps back to back, but
         # helmfile returns once manifests are applied, not once anything serves. A
         # developer absorbs that by waiting; CI has to gate on it, or the modules
         # start against a broker and database that are not accepting connections yet.
@@ -372,7 +362,7 @@ jobs:
 
       - name: Install all Labs64.IO apps
         working-directory: labs64.io-helm-charts
-        run: just install-all-apps
+        run: just install-apps
 
       - name: Wait for the modules to be ready
         run: bash scripts/wait_for_pods.sh labs64io 900
@@ -408,7 +398,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Full regression across all services and PSP providers
-        run: TEST_ALL_OUTPUT_DIR=results/nightly just test-all
+        run: TEST_ALL_OUTPUT_DIR=results/nightly just test
 
       - name: Summarise regression run
         if: ${{ !cancelled() }}
