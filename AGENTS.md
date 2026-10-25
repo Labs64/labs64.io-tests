@@ -119,3 +119,9 @@ Rules for this exception, enforced in `resources/common.resource` / `resources/a
   the narrowly scoped `local-k8s-only` log corroboration described above.
 - Don't add a query/store test against AuditFlow's own API — it doesn't have one, and never will (settled architecture decision).
 - Don't scaffold coverage for every CRUD permutation of every endpoint up front — start with smoke + authz, add functional regression only for flows that have actually broken or are genuinely load-bearing (e.g. the payment-provider lifecycle).
+
+## Working rules for every change
+
+- Judge the change against the **Quality bar for every change** in `labs64.io-workspace/AGENTS.md` (stability of the ecosystem, no regression, no network surprises, performance, HA and resilience, testability, maintainability), and say in the pull request how each applies, or why it does not.
+- Every pull request is assigned to its author and added to the `Labs64.IO` GitHub Project (`labs64.io-workspace/AGENTS.md`, "Pull requests").
+- Before you push: `just ci` (the generated auth suite is current, every suite dry-runs); a suite change is only claimed to work after it has run against a real cluster (`just smoke`, `just regression`).
