@@ -144,3 +144,38 @@ checkout GET /checkout-transactions/{id} rejects anonymous callers
     [Tags]    checkout    smoke    auth    auth-enforcement    generated    not-ga
     Protected Operation Should Reject Anonymous Access    ${CHECKOUT_BASE_URL}    GET    /checkout-transactions/sample
 
+reporting POST /metrics/list rejects anonymous callers
+    [Documentation]    listMetrics declares x-labs64.auth requiring a tenant and scope(s) reporting:read-delegated. An unauthenticated call must be refused at the edge.
+    [Tags]    reporting    smoke    auth    auth-enforcement    generated    not-ga
+    Protected Operation Should Reject Anonymous Access    ${REPORTING_BASE_URL}    POST    /metrics/list
+
+reporting POST /metrics/query rejects anonymous callers
+    [Documentation]    queryMetric declares x-labs64.auth requiring a tenant and scope(s) reporting:read-delegated. An unauthenticated call must be refused at the edge.
+    [Tags]    reporting    smoke    auth    auth-enforcement    generated    not-ga
+    Protected Operation Should Reject Anonymous Access    ${REPORTING_BASE_URL}    POST    /metrics/query
+
+reporting POST /events/search rejects anonymous callers
+    [Documentation]    searchEvents declares x-labs64.auth requiring a tenant and scope(s) reporting:read-delegated. An unauthenticated call must be refused at the edge.
+    [Tags]    reporting    smoke    auth    auth-enforcement    generated    not-ga
+    Protected Operation Should Reject Anonymous Access    ${REPORTING_BASE_URL}    POST    /events/search
+
+reporting POST /events/get rejects anonymous callers
+    [Documentation]    getEvent declares x-labs64.auth requiring a tenant and scope(s) reporting:read-delegated. An unauthenticated call must be refused at the edge.
+    [Tags]    reporting    smoke    auth    auth-enforcement    generated    not-ga
+    Protected Operation Should Reject Anonymous Access    ${REPORTING_BASE_URL}    POST    /events/get
+
+reporting POST /events/body rejects anonymous callers
+    [Documentation]    getEventBody declares x-labs64.auth requiring a tenant and scope(s) reporting:read-delegated. An unauthenticated call must be refused at the edge.
+    [Tags]    reporting    smoke    auth    auth-enforcement    generated    not-ga
+    Protected Operation Should Reject Anonymous Access    ${REPORTING_BASE_URL}    POST    /events/body
+
+reporting POST /traces/get rejects anonymous callers
+    [Documentation]    getTrace declares x-labs64.auth requiring a tenant and scope(s) reporting:read-delegated. An unauthenticated call must be refused at the edge.
+    [Tags]    reporting    smoke    auth    auth-enforcement    generated    not-ga
+    Protected Operation Should Reject Anonymous Access    ${REPORTING_BASE_URL}    POST    /traces/get
+
+reporting POST /status rejects anonymous callers
+    [Documentation]    getStatus declares x-labs64.auth requiring a tenant and scope(s) reporting:read-delegated. An unauthenticated call must be refused at the edge.
+    [Tags]    reporting    smoke    auth    auth-enforcement    generated    not-ga
+    Protected Operation Should Reject Anonymous Access    ${REPORTING_BASE_URL}    POST    /status
+

@@ -83,6 +83,14 @@ MODULES = (
         "checkout",
         not_ga=True,
     ),
+    # Not in install.sh or the default local set (it needs a ClickHouse): the same not-GA exclusion as checkout.
+    Module(
+        "reporting",
+        WORKSPACE / "labs64.io-reporting/src/main/resources/openapi/openapi-reporting-v1.yaml",
+        "REPORTING_BASE_URL",
+        "reporting",
+        not_ga=True,
+    ),
 )
 
 
