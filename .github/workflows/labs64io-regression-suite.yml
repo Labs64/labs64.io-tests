@@ -26,6 +26,7 @@ env:
   AUDITFLOW_BASE_URL: ${{ vars.AUDITFLOW_BASE_URL || 'http://gateway.localhost/auditflow/api/v1' }}
   PAYMENT_GATEWAY_BASE_URL: ${{ vars.PAYMENT_GATEWAY_BASE_URL || 'http://gateway.localhost/payment-gateway/api/v1' }}
   CHECKOUT_BASE_URL: ${{ vars.CHECKOUT_BASE_URL || 'http://gateway.localhost/checkout/api/v1' }}
+  REPORTING_BASE_URL: ${{ vars.REPORTING_BASE_URL || 'http://gateway.localhost/reporting/api/v1' }}
   MOCK_OIDC_BASE_URL: ${{ vars.MOCK_OIDC_BASE_URL || 'http://mock-oidc.localhost' }}
   OIDC_ISSUER_ID: ${{ vars.OIDC_ISSUER_ID || 'labs64io' }}
   # Optional static override for environments where mock-oidc isn't reachable.
@@ -63,6 +64,12 @@ jobs:
         with:
           repository: Labs64/labs64.io-checkout
           path: labs64.io-checkout
+
+      - name: Check out Reporting
+        uses: actions/checkout@v7
+        with:
+          repository: Labs64/labs64.io-reporting
+          path: labs64.io-reporting
 
       - uses: actions/setup-python@v7
         with:
