@@ -188,6 +188,37 @@ Get DLQ Message Count
     ${response}=    GET On Session    ${alias}    /actuator/dlq/${tenant_id}    expected_status=200
     RETURN    ${response.json()}[messageCount]
 
+Get DLQ Entries
+    [Documentation]    GET /actuator/dlq/<tenantId>?limit=<limit>[&pipeline=<name>] and return the tenant's
+    ...                entries (an order is not guaranteed). Each is a dict with ``eventId``, ``pipeline``,
+    ...                ``reason``, ``attempts``, ``lastError``, ``event`` and, for a pipeline with steps that
+    ...                finished some before failing, ``stepsDone``. Non-destructive, like the count.
+    [Arguments]    ${alias}    ${tenant_id}    ${pipeline}=${EMPTY}    ${limit}=200
+    ${params}=    Create Dictionary    limit=${limit}
+    IF    "${pipeline}" != "${EMPTY}"
+        Set To Dictionary    ${params}    pipeline=${pipeline}
+    END
+    ${response}=    GET On Session    ${alias}    /actuator/dlq/${tenant_id}    params=${params}    expected_status=200
+    RETURN    ${response.json()}[entries]
+
+DLQ Entry For Correlation Id
+    [Documentation]    The tenant's DLQ entry of ``${pipeline}`` whose event carries ``${correlation_id}``, or fail
+    ...                after ``${timeout}``. Polls: delivery is asynchronous (broker, then a failing sink, then the DLQ).
+    [Arguments]    ${alias}    ${tenant_id}    ${pipeline}    ${correlation_id}    ${timeout}=30s
+    ${entry}=    Wait Until Keyword Succeeds    ${timeout}    1s
+    ...    Find DLQ Entry    ${alias}    ${tenant_id}    ${pipeline}    ${correlation_id}
+    RETURN    ${entry}
+
+Find DLQ Entry
+    [Documentation]    Single-attempt helper for `DLQ Entry For Correlation Id`.
+    [Arguments]    ${alias}    ${tenant_id}    ${pipeline}    ${correlation_id}
+    ${entries}=    Get DLQ Entries    ${alias}    ${tenant_id}    ${pipeline}
+    FOR    ${entry}    IN    @{entries}
+        IF    "${entry}[event][correlationId]" == "${correlation_id}"    RETURN    ${entry}
+    END
+    ${count}=    Get Length    ${entries}
+    Fail    No DLQ entry of pipeline '${pipeline}' for correlation id '${correlation_id}' yet (${count} entries of that pipeline).
+
 Wait Until DLQ Count At Least
     [Documentation]    Poll GET /actuator/dlq/<tenantId> until messageCount reaches at least
     ...                ``${minimum}``, or fail after ``${timeout}``. Delivery is async (broker +
