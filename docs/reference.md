@@ -7,7 +7,7 @@ short entry point; the published documentation is at [labs64.io/docs](https://la
 
 Black-box API-edge regression suite for the [Labs64.IO](https://labs64.io) platform, built with [Robot Framework](https://robotframework.org/) and [`robotframework-requests`](https://github.com/MarketSquare/robotframework-requests).
 
-Every test exercises the **gateway edge** (Traefik + authproxy), never a backend port directly.
+Every test exercises the **gateway edge** (Traefik + Auth Gateway), never a backend port directly.
 Explicitly tagged `local-k8s-only` probes may additionally corroborate an otherwise unobservable
 auth or cross-service delivery effect through correlation-scoped pod logs; they never inspect
 RabbitMQ or a database. See `AGENTS.md` for the narrow exception rules.
@@ -216,7 +216,7 @@ The GitHub Actions workflow (`.github/workflows/labs64io-regression-suite.yml`) 
 
 **Static Checks** is the fastest way to find a broken test. It runs
 `scripts/generate_auth_enforcement_suite.py --check` (every operation declaring
-`x-labs64-auth` has a generated edge test) and `robot --dryrun` over every suite, which
+an `auth` block under `x-labs64` has a generated edge test) and `robot --dryrun` over every suite, which
 resolves each keyword and `Resource` import without sending a request — so a test calling a
 keyword that doesn't exist fails in seconds instead of surfacing an hour later as a test
 failure indistinguishable from a real regression. Run the same check locally with
@@ -272,4 +272,4 @@ individual regressions, without downloading the `log.html` artifact.
 
 ## Adding, running, or auditing tests
 
-See the `test-suite-steward` skill (workspace-level `.agents/skills/test-suite-steward/`) — it covers where a new test belongs, the OpenAPI `x-labs64-auth`-driven authz matrix, how to run and interpret results, and a periodic suite-health audit (drift, coverage gaps, duplication, flaky handling).
+See the `test-suite-steward` skill (workspace-level `.agents/skills/test-suite-steward/`) — it covers where a new test belongs, the authz matrix driven by the OpenAPI `auth` blocks, how to run and interpret results, and a periodic suite-health audit (drift, coverage gaps, duplication, flaky handling).

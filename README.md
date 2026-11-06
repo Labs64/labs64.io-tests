@@ -18,7 +18,7 @@
 
 A change in one module can break another, and the break shows up at the edge: a wrong scope, a missing route, a payment that never reaches the audit log. This suite checks the platform the way a real client sees it, so you find out before your users do.
 
-1. **Edge only.** Every test goes through Traefik and the auth proxy, so authentication and authorization are always part of what is tested.
+1. **Edge only.** Every test goes through Traefik and the Auth Gateway, so authentication and authorization are always part of what is tested.
 2. **Real tokens.** Tokens are minted with exact scopes from the mock identity provider or Keycloak.
 3. **Tagged and filterable.** `smoke`, `regression`, `auth` and module tags let you run exactly the slice you need.
 
@@ -35,7 +35,7 @@ A change in one module can break another, and the break shows up at the edge: a 
 
 ## Features
 
-- **Gateway-edge only**: Traefik and the auth proxy are always in the path.
+- **Gateway-edge only**: Traefik and the Auth Gateway are always in the path.
 - **Exact-scope tokens**: minted from mock OIDC or Keycloak per test, so authorization is really exercised.
 - **Auth matrix**: a generated suite checks every route against the scopes it should and should not accept.
 - **Module coverage**: AuditFlow, Payment Gateway and the cross-module audit delivery probe.

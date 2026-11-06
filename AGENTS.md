@@ -11,16 +11,16 @@ Black-box, API-edge integration & regression suite for the Labs64.IO ecosystem, 
 Every test must map to an operation that actually exists in the module's OpenAPI spec (e.g. `labs64.io-auditflow/auditflow-api/src/main/resources/openapi/openapi-audit-v1.yaml`). Before writing or updating a test:
 
 1. Read the module's OpenAPI spec — its `paths` are the only endpoints that exist. Do not guess at conventional-sounding endpoints (`/health`, `/events`) that "should" exist — this suite previously drifted this way (auditflow tests targeted a `GET /events` query endpoint that was never in the contract; AuditFlow is a router with no query API by design, see its `AGENTS.md`).
-2. Read each operation's `x-labs64-auth` annotation (`public: true`, or `tenant: true` + `scopes: [...]`) — this is the same annotation the authproxy's cerbos policy generation reads, and it is the source of truth for what the auth/authz matrix in `authz.robot` should assert.
+2. Read each operation's `auth` block under `x-labs64` (`public: true`, or `tenant: true` + `scopes: [...]`) — this is the same block the commons `OpenApiAuthPreprocessor` reads to generate the Cerbos policies, and it is the source of truth for what the auth/authz matrix in `authz.robot` should assert.
 3. Use the `test-suite-steward` skill (workspace-level `.agents/skills/test-suite-steward/`) to diff existing tests against the current spec and scaffold the matrix — it automates steps 1–2, and also covers running and auditing the suite more broadly.
 
 ## Generated auth-enforcement suite (do not hand-edit)
 
 `tests/common/auth_enforcement.robot` is **generated** by `scripts/generate_auth_enforcement_suite.py`
-from every module's `x-labs64-auth`, one case per protected operation, each calling the operation at
+from every module's `auth` blocks under `x-labs64`, one case per protected operation, each calling the operation at
 the gateway edge with no credentials and asserting 401/403. Regenerate (`just generate-auth-suite`) and commit
 after any spec change; CI runs `just check-auth-suite`, which fails when the committed suite has drifted — an
-operation that declares `x-labs64-auth` without a generated test is precisely the gap this catches.
+operation that declares an `auth` block without a generated test is precisely the gap this catches.
 
 This is the edge half of the guarantee. Each backend separately proves it fails closed in its own
 `AuthEnforcementContractTest` (built on `AuthEnforcementContract` + `ModulePepHarness` in commons).
@@ -47,7 +47,7 @@ cost a full nightly provision to discover, as two failures indistinguishable fro
 
 ## Gateway edge only
 
-All base URLs point at the Traefik/authproxy gateway (`http://gateway.localhost/<module>/api/v1`), never a backend port directly. Cerbos authorization is enforced at the gateway; backends trust gateway-supplied `X-Auth-*` headers and in the `local` profile may even fall back to a default tenant. Hitting a backend directly makes an authz test meaningless — it would pass or fail regardless of the token.
+All base URLs point at the Traefik and Auth Gateway edge (`http://gateway.localhost/<module>/api/v1`), never a backend port directly. Cerbos authorization is enforced at the gateway; backends trust gateway-supplied `X-Auth-*` headers and in the `local` profile may even fall back to a default tenant. Hitting a backend directly makes an authz test meaningless — it would pass or fail regardless of the token.
 
 ## Minting provider-neutral test tokens
 
@@ -95,7 +95,7 @@ Tag every case for a module whose images have never been published `not-ga` (cur
 
 Tests tagged `local-k8s-only` may corroborate an HTTP assertion against `kubectl logs` in two
 narrow cases: auth/authz enforcement, and a cross-service delivery probe where the receiving
-service deliberately has no read API. Current examples are the authproxy's cerbos decision log
+service deliberately has no read API. Current examples are the Auth Gateway's Cerbos decision log
 and AuditFlow delivery identified by a caller-supplied `correlationId`. This is an explicit
 exception to "Gateway edge only" above for effects a pure HTTP client cannot observe.
 
