@@ -8,9 +8,12 @@ Black-box, API-edge integration & regression suite for the Labs64.IO ecosystem, 
 
 ## Contract-first, always
 
+This repository holds the shared keywords (`resources/`), the generated auth suite and the cross-module e2e flows. A module's own suites live in its repository under `labs64.io-<module>/tests/e2e/` (see "Structure per module"); the rules below apply to them equally.
+
 Every test must map to an operation that actually exists in the module's OpenAPI spec (e.g. `labs64.io-auditflow/auditflow-api/src/main/resources/openapi/openapi-audit-v1.yaml`). Before writing or updating a test:
 
 1. Read the module's OpenAPI spec — its `paths` are the only endpoints that exist. Do not guess at conventional-sounding endpoints (`/health`, `/events`) that "should" exist — this suite previously drifted this way (auditflow tests targeted a `GET /events` query endpoint that was never in the contract; AuditFlow is a router with no query API by design, see its `AGENTS.md`).
+   One exception is deliberate: AuditFlow's DLQ operator endpoint (`/actuator/dlq/<tenantId>`, DEVELOPERS.md "Observability" endpoint table) is an actuator, not part of the OpenAPI contract. `resources/auditflow.resource` calls it because it is the only way an edge client can see what was dead-lettered, and `dlq_admin.robot` tests it against `DlqEndpoint`'s documented behaviour. Don't read it as licence to test other undocumented endpoints.
 2. Read each operation's `auth` block under `x-labs64` (`public: true`, or `tenant: true` + `scopes: [...]`) — this is the same block the commons `OpenApiAuthPreprocessor` reads to generate the Cerbos policies, and it is the source of truth for what the auth/authz matrix in `authz.robot` should assert.
 3. Use the `test-suite-steward` skill (workspace-level `.agents/skills/test-suite-steward/`) to diff existing tests against the current spec and scaffold the matrix — it automates steps 1–2, and also covers running and auditing the suite more broadly.
 
@@ -63,12 +66,20 @@ test must distinguish scopes.
 ## Structure per module
 
 ```
-resources/<module>.resource   # session/keyword helpers, one file per module
-tests/<module>/
-  smoke.robot                 # fast, critical-path only — runs on every PR
-  authz.robot                 # auth/authz matrix: unauthenticated, wrong scope, correct scope
-  <feature>.robot             # additional functional regression, only as needed
+labs64.io-tests/
+  resources/<module>.resource # session/keyword helpers, one file per module (shared)
+  tests/common/               # generated auth suite + cross-module e2e flows only
+labs64.io-<module>/           # sibling checkout — must sit next to labs64.io-tests
+  tests/e2e/
+    smoke.robot               # fast, critical-path only — runs on every PR
+    authz.robot               # auth/authz matrix: unauthenticated, wrong scope, correct scope
+    <feature>.robot           # additional functional regression, only as needed
 ```
+
+Each module suite imports its keywords with `Resource ../../../labs64.io-tests/resources/<module>.resource`,
+which is why the checkout directory name matters. Never add `tests/<module>/` here: a module's suites
+live with its code (this suite once did the other way round and was split out), and the `justfile` and CI
+only collect `tests/` plus each module's `tests/e2e/`.
 
 Don't create a file per HTTP verb or per tiny variation — group related test cases into the smallest number of files that stay readable. `authz.robot` in particular should read as a matrix: one test case per (auth state × scope) combination that matters, not one file per endpoint.
 
@@ -82,7 +93,7 @@ Tag every case for a module whose images have never been published `not-ga` (cur
 
 1. Confirm the module has a real OpenAPI spec and check its `AGENTS.md` for base path / port conventions.
 2. Add `resources/<module>.resource` following the pattern in `auditflow.resource` or `payment_gateway.resource` (session helpers + one keyword per operation you'll test).
-3. Add `tests/<module>/smoke.robot` and `tests/<module>/authz.robot`.
+3. Add `smoke.robot` and `authz.robot` in the module repository's `tests/e2e/`, importing the resource from step 2.
 4. Add `../labs64.io-<module>/tests/e2e/` to the robot data sources in every job of
    `.github/workflows/labs64io-regression-suite.yml` and to `ALL_TESTS` in the `justfile`
    (there is no build matrix — each job passes the suite paths to one `robot` call). If

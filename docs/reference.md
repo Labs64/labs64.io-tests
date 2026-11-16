@@ -23,17 +23,12 @@ labs64.io-tests/
 │   ├── common.resource             # HTTP sessions + mock/Keycloak exact-scope token minting
 │   ├── auditflow.resource          # AuditFlow-specific keywords (POST /audit/publish)
 │   └── payment_gateway.resource    # Payment Gateway-specific keywords
-├── tests/
-│   ├── common/
-│   │   └── e2e/
-│   │       └── payment_auditflow.robot # PG -> AuditFlow local-k8s delivery probe
-│   ├── auditflow/
-│   │   ├── smoke.robot             # happy path + 400 validation
-│   │   └── authz.robot             # auth/authz matrix — see P0 Defect Coverage below
-│   └── payment-gateway/
-│       ├── smoke.robot
-│       ├── payment_providers.robot # create/read/update/delete lifecycle (noop PSP)
-│       └── authz.robot             # auth/authz scope matrix
+├── tests/                          # only the cross-module suites live here
+│   └── common/
+│       ├── auth_enforcement.robot  # GENERATED edge auth suite (do not hand-edit)
+│       └── e2e/
+│           ├── payment_auditflow.robot # PG -> AuditFlow local-k8s delivery probe
+│           └── purchase_flow.robot     # Checkout -> PG -> AuditFlow (not-ga)
 ├── scripts/
 │   ├── generate_auth_enforcement_suite.py  # generates tests/common/auth_enforcement.robot
 │   ├── mirror_edge_images.sh       # pull :edge images into the local k3d registry
@@ -42,6 +37,25 @@ labs64.io-tests/
 └── .github/workflows/
     └── labs64io-regression-suite.yml        # GitHub Actions CI workflow
 ```
+
+### Where the module suites live
+
+A module's own suites live in **that module's repository**, under `labs64.io-<module>/tests/e2e/`,
+next to the code they test. They import the shared keywords from this repository
+(`Resource ../../../labs64.io-tests/resources/<module>.resource`), so the module repositories must
+be checked out as siblings of `labs64.io-tests`, and this one must keep that exact directory name.
+The `justfile` (`ALL_TESTS`) and the CI workflow pass all three roots to a single `robot` call:
+
+```
+tests/                                       # this repository: generated auth suite + cross-module e2e
+../labs64.io-auditflow/tests/e2e/            # AuditFlow
+../labs64.io-payment-gateway/tests/e2e/      # Payment Gateway
+```
+
+| Module | Suites (in `labs64.io-<module>/tests/e2e/`) |
+|---|---|
+| AuditFlow | `smoke`, `authz`, `request_validation`, `batch_publish`, `tenant_isolation`, `pipeline_routing`, `condition_operators`, `pipeline_steps`, `redaction`, `dlq_replay`, `dlq_admin`, `quota_enforcement`, `secret_ref_resolution` (each suite's purpose is in its own `Documentation`; the module's `AGENTS.md` has the overview) |
+| Payment Gateway | `smoke`, `authz`, `payment_providers`, `payment_flow`, `paypal_psp_flow`, `stripe_psp_flow` |
 
 ## Tag Taxonomy
 
@@ -59,6 +73,8 @@ labs64.io-tests/
 | `auth` | Authentication / authorisation assertions | — |
 | `tenant-isolation` | Cross-tenant / cross-scope isolation scenarios | — |
 | `error-handling` | Error path / negative testing | — |
+| `validation` | Request-validation and boundary cases (field limits, `eventTime` window, content types, malformed bodies) | — |
+| `batch`, `dlq`, `quota`, `redaction`, `security` | Feature tags: narrow a run to one capability, e.g. `--include dlq` | — |
 | `psp-stub` | Requires the external PSP HTTP stub and a matching provider endpoint override | Targeted locally + nightly |
 
 > `contract`, `critical`, and `flaky` are **reserved for future use** — no test currently carries
@@ -107,36 +123,43 @@ just tests test-auth        # any recipe of this repository: just tests <recipe>
 
 Against another stack, name its provider: `IDENTITY_PROVIDER=keycloak just smoke`.
 
+The commands below run from the repository root. `ALL` stands for every suite root (the same paths as
+`ALL_TESTS` in the `justfile`); a bare `tests/` would run only the cross-module suites:
+
+```bash
+ALL="tests/ ../labs64.io-auditflow/tests/e2e/ ../labs64.io-payment-gateway/tests/e2e/"
+```
+
 **All smoke tests (fast, every PR):**
 ```bash
-robot --include smoke --exclude not-ga tests/
+robot --include smoke --exclude not-ga --exclude known-bug $ALL
 ```
 
 **A single service:**
 ```bash
-robot tests/auditflow/
-robot tests/payment-gateway/
+robot --exclude psp-stub ../labs64.io-auditflow/tests/e2e/
+robot --exclude psp-stub ../labs64.io-payment-gateway/tests/e2e/
 ```
 
 **A single file or test case:**
 ```bash
-robot tests/auditflow/authz.robot
-robot --test "Publish With Correct Scope Is Allowed" tests/auditflow/authz.robot
+robot ../labs64.io-auditflow/tests/e2e/authz.robot
+robot --test "Allow correct scope (200)" ../labs64.io-auditflow/tests/e2e/authz.robot
 ```
 
-**P0 blocker tests only (never skipped):**
+**Full regression, excluding flaky, not-yet-GA, known-bug and PSP-stub cases:**
 ```bash
-robot --include smoke --exclude not-ga tests/
-```
-
-**Full regression, excluding flaky and not-yet-GA modules:**
-```bash
-robot --include regression --exclude flaky --exclude not-ga --exclude psp-stub tests/
+robot --exclude flaky --exclude not-ga --exclude known-bug --exclude psp-stub $ALL
 ```
 
 **Auth/authz matrix only, across all services:**
 ```bash
-robot --include auth tests/
+robot --include auth --exclude not-ga --exclude known-bug $ALL
+```
+
+**Statically validate every suite (no cluster):**
+```bash
+robot --dryrun --outputdir results/dryrun $ALL
 ```
 
 Robot writes `output.xml`, `log.html`, and `report.html` to the current directory (or `--outputdir <dir>`) on every run — open `log.html` first when a test fails, it has the full request/response detail per keyword.
@@ -195,7 +218,7 @@ Base URLs and the identity provider are resolved from environment variables (see
 ```bash
 GATEWAY_BASE_URL=https://gateway.example.com \
 MOCK_OIDC_BASE_URL=https://mock-oidc.example.com \
-robot --include smoke tests/
+robot --include smoke --exclude not-ga $ALL
 ```
 
 For the local Keycloak profile, set `IDENTITY_PROVIDER=keycloak`; the default transport reuses
@@ -268,7 +291,7 @@ individual regressions, without downloading the `log.html` artifact.
 
 | Defect class | Test file | Tag |
 |---|---|---|
-| Phantom JWT (auth gap between spec and implementation) | `tests/auditflow/authz.robot` | `regression` |
+| Phantom JWT (auth gap between spec and implementation) | `labs64.io-auditflow/tests/e2e/authz.robot` | `regression` |
 
 ## Adding, running, or auditing tests
 

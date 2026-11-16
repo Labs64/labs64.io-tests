@@ -23,6 +23,15 @@ ${AUDITFLOW_REGRESSION_QUOTA_SCOPE}    auditflow-regression-quota
 ${AUDITFLOW_REGRESSION_SESSION}          auditflow-regression
 ${AUDITFLOW_REGRESSION_QUOTA_SESSION}    auditflow-regression-quota
 
+# The unprovisioned secondary-tenant persona (t_mock_2): authenticated and correctly scoped, but no
+# tenant record exists for it locally, so the ingest gate must refuse it with TENANT_NOT_PROVISIONED.
+${AUDITFLOW_TENANT2_SCOPE}      auditflow-tenant-2
+${AUDITFLOW_TENANT2_SESSION}    auditflow-tenant-2
+
+# Response bodies of an error must never carry implementation detail (stack frames, framework or JDK
+# class names). Deliberately narrow: it matches a leaked stack trace, not a validation message.
+${INTERNALS_LEAK_PATTERN}    (?i)(\\sat\\s[\\w.$]+\\([\\w.]+:\\d+\\)|java\\.(lang|util|io)\\.|org\\.springframework|caused by|NullPointerException)
+
 # Local-k8s-only: AuditFlow's own backend deployment name for kubectl log corroboration (see
 # AGENTS.md "Local-only pod-log corroboration"). Shared namespace/authproxy deployment vars
 # live in common.resource. Never used unless `Local Kubernetes Available` is true.
@@ -247,11 +256,16 @@ Replay DLQ
     RETURN    ${response.json()}
 
 Purge DLQ
-    [Documentation]    DELETE /actuator/dlq/<tenantId> — discard this tenant's DLQ messages
-    ...                outright (no replay). Tenant-scoped like inspect/replay: another tenant's
-    ...                messages are never touched.
-    [Arguments]    ${alias}    ${tenant_id}
-    ${response}=    DELETE On Session    ${alias}    /actuator/dlq/${tenant_id}    expected_status=200
+    [Documentation]    DELETE /actuator/dlq/<tenantId>[?pipeline=<name>] — discard this tenant's DLQ
+    ...                messages outright (no replay). Tenant-scoped like inspect/replay: another
+    ...                tenant's messages are never touched. With ``${pipeline}`` only that pipeline's
+    ...                entries are discarded.
+    [Arguments]    ${alias}    ${tenant_id}    ${pipeline}=${EMPTY}
+    ${params}=    Create Dictionary
+    IF    "${pipeline}" != "${EMPTY}"
+        Set To Dictionary    ${params}    pipeline=${pipeline}
+    END
+    ${response}=    DELETE On Session    ${alias}    /actuator/dlq/${tenant_id}    params=${params}    expected_status=200
     RETURN    ${response.json()}
 
 Create Regression Session With Empty DLQ
@@ -275,3 +289,122 @@ Build Oversized Audit Event
     ${large_string}=    Evaluate    'x' * 15000000
     Set To Dictionary    ${event}    oversized_field=${large_string}
     RETURN    ${event}
+
+Create Secondary Tenant Session
+    [Documentation]    Open a session for the unprovisioned t_mock_2 tenant persona (see
+    ...                ``${AUDITFLOW_TENANT2_SCOPE}``): a valid, well-scoped token whose tenant has no
+    ...                tenant record, i.e. the ingest gate's refusal path.
+    Create Session With Scope    ${AUDITFLOW_TENANT2_SESSION}    ${AUDITFLOW_BASE_URL}    ${AUDITFLOW_TENANT2_SCOPE}
+
+Send Raw Request
+    [Documentation]    Send ``${method} ${path}`` on the given session with an arbitrary body and
+    ...                Content-Type, for requests the JSON helpers cannot express: a wrong or missing
+    ...                Content-Type, a malformed or non-UTF-8 body, an undeclared HTTP method. Pass
+    ...                ``${NONE}`` as the Content-Type to send none (it also drops the session's
+    ...                default). ``${headers}`` adds or overrides further request headers. Never
+    ...                raises on the status: the caller asserts it.
+    [Arguments]    ${alias}    ${method}    ${path}    ${body}=${NONE}    ${content_type}=application/json
+    ...            ${headers}=${NONE}
+    ${request_headers}=    Create Dictionary    Content-Type=${content_type}
+    IF    $headers is not None
+        Set To Dictionary    ${request_headers}    &{headers}
+    END
+    ${response}=    Run Keyword    ${method} On Session
+    ...    ${alias}    ${path}    data=${body}    headers=${request_headers}    expected_status=any
+    RETURN    ${response}
+
+Get UTC Timestamp
+    [Documentation]    The current UTC time plus ``${offset_seconds}`` (negative for the past) as an
+    ...                ISO-8601 string, to build an ``eventTime`` relative to now.
+    [Arguments]    ${offset_seconds}=0
+    ${timestamp}=    Evaluate
+    ...    (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=${offset_seconds})).strftime('%Y-%m-%dT%H:%M:%SZ')
+    ...    modules=datetime
+    RETURN    ${timestamp}
+
+Timestamp Should Be Recent
+    [Documentation]    Assert an ISO-8601 timestamp (any fractional precision) parses and lies within
+    ...                ``${tolerance_seconds}`` of the test host's clock. The tolerance only has to
+    ...                absorb clock skew between this host and the cluster, never test duration.
+    [Arguments]    ${timestamp}    ${tolerance_seconds}=600
+    ${delta}=    Evaluate
+    ...    abs((datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromisoformat(re.sub(r'(\\.\\d{6})\\d+', r'\\1', $timestamp).replace('Z', '+00:00'))).total_seconds())
+    ...    modules=datetime, re
+    Should Be True    ${delta} <= ${tolerance_seconds}
+    ...    msg=Timestamp '${timestamp}' is ${delta}s away from now (allowed: ${tolerance_seconds}s).
+
+Should Be A UUID
+    [Documentation]    Assert the value is a canonical UUID string.
+    [Arguments]    ${value}
+    Should Match Regexp    ${value}    (?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+    ...    msg='${value}' is not a UUID.
+
+Response Should Be Error Response
+    [Documentation]    Assert the response is the contract's ``ErrorResponse``: the expected HTTP
+    ...                status, a JSON body with the expected ``code`` and a non-empty ``message`` and
+    ...                ``timestamp``, and nothing of the implementation in it.
+    [Arguments]    ${response}    ${status}    ${code}
+    Response Status Should Be    ${response}    ${status}
+    ${content_type}=    Get From Dictionary    ${response.headers}    Content-Type    ${EMPTY}
+    Should Contain    ${content_type}    application/json
+    ...    msg=Error response is not JSON (Content-Type '${content_type}'). Body: ${response.text}
+    ${body}=    Set Variable    ${response.json()}
+    Should Be Equal As Strings    ${body}[code]    ${code}
+    ...    msg=Expected error code ${code} but got ${body}[code]. Body: ${response.text}
+    Should Not Be Empty    ${body}[message]
+    Should Not Be Empty    ${body}[timestamp]
+    Response Should Not Leak Internals    ${response}
+
+Response Should Not Leak Internals
+    [Documentation]    Assert the body carries no stack frame and no framework or JDK class name.
+    [Arguments]    ${response}
+    Should Not Match Regexp    ${response.text}    ${INTERNALS_LEAK_PATTERN}
+    ...    msg=Response leaks implementation detail: ${response.text}
+
+Batch Response Should Be Consistent
+    [Documentation]    Assert a processed batch (HTTP 200) is internally consistent and return its
+    ...                body: exactly one result per request event, ``index`` equal to the position,
+    ...                ``acceptedCount``/``rejectedCount`` equal to the ACCEPTED/REJECTED results,
+    ...                and every REJECTED result carrying an error code.
+    [Arguments]    ${response}    ${expected_total}
+    Response Status Should Be    ${response}    200
+    ${body}=    Set Variable    ${response.json()}
+    ${results}=    Set Variable    ${body}[results]
+    Length Should Be    ${results}    ${expected_total}
+    ${accepted}=    Evaluate    len([r for r in $results if r['status'] == 'ACCEPTED'])
+    ${rejected}=    Evaluate    len([r for r in $results if r['status'] == 'REJECTED'])
+    Should Be Equal As Integers    ${body}[acceptedCount]    ${accepted}
+    Should Be Equal As Integers    ${body}[rejectedCount]    ${rejected}
+    ${total}=    Evaluate    ${accepted} + ${rejected}
+    Should Be Equal As Integers    ${total}    ${expected_total}
+    FOR    ${position}    ${result}    IN ENUMERATE    @{results}
+        Should Be Equal As Integers    ${result}[index]    ${position}
+        IF    "${result}[status]" == "REJECTED"
+            Should Not Be Empty    ${result}[error][code]
+        END
+    END
+    RETURN    ${body}
+
+Build Valid Audit Event Batch
+    [Documentation]    ``${count}`` well-formed events with distinct correlation ids derived from one
+    ...                fresh prefix, as the list a batch request carries.
+    [Arguments]    ${count}
+    ${prefix}=    Generate Correlation ID
+    ${events}=    Evaluate
+    ...    [{'eventType': 'api.call', 'sourceSystem': 'labs64.io-tests', 'correlationId': '%s-%d' % ($prefix, i)} for i in range(int($count))]
+    RETURN    ${events}
+
+Get DLQ Info
+    [Documentation]    GET /actuator/dlq/<tenantId>[?limit=<limit>][&pipeline=<name>] and return the whole
+    ...                JSON body: the counts (``messageCount``, ``byPipeline``, ``byReason``,
+    ...                ``legacyMessageCount``), and ``entries`` only when a ``limit`` was given.
+    [Arguments]    ${alias}    ${tenant_id}    ${limit}=${EMPTY}    ${pipeline}=${EMPTY}
+    ${params}=    Create Dictionary
+    IF    "${limit}" != "${EMPTY}"
+        Set To Dictionary    ${params}    limit=${limit}
+    END
+    IF    "${pipeline}" != "${EMPTY}"
+        Set To Dictionary    ${params}    pipeline=${pipeline}
+    END
+    ${response}=    GET On Session    ${alias}    /actuator/dlq/${tenant_id}    params=${params}    expected_status=200
+    RETURN    ${response.json()}

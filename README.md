@@ -46,7 +46,7 @@ A change in one module can break another, and the break shows up at the edge: a 
 
 | Area | What is checked |
 |---|---|
-| **AuditFlow** | Publishing events, validation errors and the authorization matrix |
+| **AuditFlow** | Publishing (single and batch), validation errors, the authorization and tenant-isolation matrix, pipeline routing and condition operators, DLQ inspect and replay, quota, redaction and secretRef resolution. The suites live in `labs64.io-auditflow/tests/e2e/` and use this repository's shared keywords. |
 | **Payment Gateway** | Provider lifecycle with the NoOp provider and the authorization matrix |
 | **Auth enforcement** | A generated matrix across every route: the scopes it should and should not accept |
 | **Across modules** | A payment appearing in AuditFlow (local cluster only, via correlation-scoped logs) |
