@@ -37,7 +37,7 @@ customer-portal-ui
 publisher() {
   case "$1" in
     auditflow|auditflow-transformer|auditflow-sink) echo "labs64.io-auditflow/.github/workflows/labs64io-ci.yml" ;;
-    traefik-authproxy)   echo "labs64.io-authproxy/.github/workflows/labs64io-ci.yml" ;;
+    traefik-authproxy)   echo "labs64.io-authgateway/.github/workflows/labs64io-ci.yml" ;;
     payment-gateway)     echo "labs64.io-payment-gateway/.github/workflows/labs64io-be-ci.yml" ;;
     checkout)            echo "labs64.io-checkout/.github/workflows/labs64io-be-ci.yml" ;;
     checkout-ui)         echo "labs64.io-checkout/.github/workflows/labs64io-fe-ci.yml" ;;
