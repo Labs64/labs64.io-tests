@@ -3,9 +3,9 @@
 **A black-box regression suite for the Labs64.IO platform, run through the gateway edge.**
 *Part of the [Labs64.IO Ecosystem](https://labs64.io): the cross-module safety net: every test exercises the gateway, never a backend port.*
 
-[![Regression Suite](https://github.com/Labs64/labs64.io-tests/actions/workflows/labs64io-regression-suite.yml/badge.svg)](https://github.com/Labs64/labs64.io-tests/actions/workflows/labs64io-regression-suite.yml)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/Labs64/labs64.io-tests/labs64io-regression-suite.yml?label=CI&logo=github)](https://github.com/Labs64/labs64.io-tests/actions/workflows/labs64io-regression-suite.yml)
 [![📖 Documentation](https://img.shields.io/badge/📖-Documentation-AB6543.svg)](https://labs64.io/docs/development/contributing.html)
+[![Labs64.IO Ecosystem](https://img.shields.io/badge/Labs64.IO-Ecosystem-E14817.svg?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9Ii01IC01IDE1NSAxNTUiPjxwYXRoIGZpbGw9IiNmZmYiIGQ9Ik0zIDNoMTM5djEzOUgzWk02OSAzdjEzOWg3VjNaTTQzIDQzdjU5aDI2VjQzWk03NiA0M3Y1OWgyNlY0M1oiLz48cGF0aCBmaWxsPSIjYmJiIiBkPSJNNDkgNDloNDd2NDdINDlaIi8%2BPC9zdmc%2B)](https://labs64.io/docs/services/)
 
 <p align="center"><img src="docs/assets/tests-hero.svg" alt="Tests: A route-by-caller matrix of expected status codes: the Robot Framework suite calls every route through the gateway with real tokens and checks that each 2xx, 401 and 403 matches, 36 of 36." width="880"></p>
 
