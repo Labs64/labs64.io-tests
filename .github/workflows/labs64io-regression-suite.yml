@@ -385,7 +385,7 @@ jobs:
             -d client_secret=local-test -d scope=admin
           echo "mock-oidc: OK"
           # A real protected operation (the only path in AuditFlow's contract),
-          # called with no credentials: 401/403 proves routing and the authproxy are
+          # called with no credentials: 401/403 proves routing and the Auth Gateway are
           # both live, which is all this checks. Anything else — 404, 502, 000 — is
           # a broken edge, and saying so here beats a hundred connection errors below.
           code=$(curl -s -o /dev/null -w '%{http_code}' -X POST \

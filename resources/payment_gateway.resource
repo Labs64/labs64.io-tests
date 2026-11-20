@@ -15,7 +15,7 @@ ${NOOP_PROVIDER}                     noop
 ${PAYMENT_GATEWAY_PROVIDERS_PATH}    /payment-gateway/api/v1/payment-providers
 
 # Local-k8s-only: Payment Gateway's own backend deployment name for kubectl log corroboration
-# (see AGENTS.md "Local-only pod-log corroboration"). Shared namespace/authproxy deployment
+# (see AGENTS.md "Local-only pod-log corroboration"). Shared namespace/authgateway deployment
 # vars live in common.resource. Never used unless `Local Kubernetes Available` is true.
 ${PAYMENT_GATEWAY_K8S_DEPLOYMENT}    %{PAYMENT_GATEWAY_K8S_DEPLOYMENT=labs64io-payment-gateway}
 
@@ -74,19 +74,19 @@ Delete Payment Provider
     ${response}=    DELETE On Session    ${alias}    /payment-providers/${payment_provider_id}    expected_status=any
     RETURN    ${response}
 
-Authproxy Logs Should Show No-Token Rejection For Payment Providers
-    [Documentation]    Local-k8s-only. Thin wrapper over the generic `Authproxy Logs Should
+Authgateway Logs Should Show No-Token Rejection For Payment Providers
+    [Documentation]    Local-k8s-only. Thin wrapper over the generic `Authgateway Logs Should
     ...                Show No-Token Rejection` fixed to GET /payment-providers.
     [Arguments]    ${since}=90s
-    Authproxy Logs Should Show No-Token Rejection    GET    ${PAYMENT_GATEWAY_PROVIDERS_PATH}    ${since}
+    Authgateway Logs Should Show No-Token Rejection    GET    ${PAYMENT_GATEWAY_PROVIDERS_PATH}    ${since}
 
-Authproxy Logs Should Show Authz Decision For Payment Providers
-    [Documentation]    Local-k8s-only. Thin wrapper over the generic `Authproxy Logs Should
+Authgateway Logs Should Show Authz Decision For Payment Providers
+    [Documentation]    Local-k8s-only. Thin wrapper over the generic `Authgateway Logs Should
     ...                Show Authz Decision` fixed to Payment Gateway's listPaymentProviders
     ...                operation — the anchor op the base (non-k8s) scope-matrix cases already
     ...                use, so the log-corroboration cases mirror them 1:1.
     ...
-    ...                Note: unlike AuditFlow, these cases corroborate only the authproxy's edge
+    ...                Note: unlike AuditFlow, these cases corroborate only the Auth Gateway's edge
     ...                decision, not backend delivery. AuditFlow's request schema carries a
     ...                client-supplied ``correlationId`` that makes a specific event
     ...                unambiguously identifiable in the backend's logs; payment-provider reads
@@ -95,7 +95,7 @@ Authproxy Logs Should Show Authz Decision For Payment Providers
     ...                corroboration is still the security-relevant half — it proves cerbos itself
     ...                recorded the deny/allow, not just that the HTTP client received it.
     [Arguments]    ${outcome}    ${since}=90s
-    Authproxy Logs Should Show Authz Decision    payment-gateway    listPaymentProviders    ${outcome}    ${since}
+    Authgateway Logs Should Show Authz Decision    payment-gateway    listPaymentProviders    ${outcome}    ${since}
 
 List Payments
     [Documentation]    GET /payments — requires payment:read scope.

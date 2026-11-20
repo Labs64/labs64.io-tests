@@ -7,7 +7,7 @@ Library          OperatingSystem
 Library          Process
 
 *** Variables ***
-# All module URLs go through the Traefik/authproxy gateway edge — never straight to a
+# All module URLs go through the Traefik/Auth Gateway edge — never straight to a
 # backend port. Authorization (cerbos) is enforced at the gateway; a backend hit directly
 # would skip it entirely (services trust gateway-supplied X-Auth-* headers).
 ${GATEWAY_BASE_URL}           %{GATEWAY_BASE_URL=http://gateway.localhost}
@@ -49,11 +49,11 @@ ${API_TOKEN}                  %{API_TOKEN=${EMPTY}}
 ${LOCAL_K8S_CONTEXT}           %{LOCAL_K8S_CONTEXT=k3d-labs64io}
 
 # Shared local-k8s-only namespace/deployment names — every Labs64.IO module and the
-# authproxy share one namespace and one authproxy instance, so these live here rather than
+# authgateway share one namespace and one authgateway instance, so these live here rather than
 # being redeclared per module. Module backend deployment names (e.g. AUDITFLOW_K8S_DEPLOYMENT)
 # stay in each module's own resource file. Never used unless `Local Kubernetes Available` is true.
 ${LABS64IO_K8S_NAMESPACE}      %{LABS64IO_K8S_NAMESPACE=labs64io}
-${AUTHPROXY_K8S_DEPLOYMENT}    %{AUTHPROXY_K8S_DEPLOYMENT=gateway-common}
+${AUTHGATEWAY_K8S_DEPLOYMENT}    %{AUTHGATEWAY_K8S_DEPLOYMENT=authgateway}
 
 *** Keywords ***
 Get OIDC Token
@@ -228,8 +228,8 @@ Fetch Recent Pod Logs
     ...    msg=kubectl logs failed for deploy/${deployment} -n ${namespace}: ${result.stderr}
     RETURN    ${result.stdout}
 
-Authproxy Logs Should Show Authz Decision
-    [Documentation]    Local-k8s-only. Assert the authproxy recently logged a cerbos ``${outcome}``
+Authgateway Logs Should Show Authz Decision
+    [Documentation]    Local-k8s-only. Assert the Auth Gateway recently logged a cerbos ``${outcome}``
     ...                (``enforced-allow``/``enforced-deny``) for ``${module}``'s ``${op}``
     ...                operation — corroborates the HTTP status a test already asserted against
     ...                the edge's own independent decision log. Matches the log format
@@ -238,15 +238,15 @@ Authproxy Logs Should Show Authz Decision
     [Arguments]    ${module}    ${op}    ${outcome}    ${since}=90s
     ${expected_kind}=    Replace String    ${module}    -    _
     ${expected_kind}=    Set Variable    ${expected_kind}_api
-    ${logs}=    Fetch Recent Pod Logs    ${LABS64IO_K8S_NAMESPACE}    ${AUTHPROXY_K8S_DEPLOYMENT}    ${since}
+    ${logs}=    Fetch Recent Pod Logs    ${LABS64IO_K8S_NAMESPACE}    ${AUTHGATEWAY_K8S_DEPLOYMENT}    ${since}
     Should Contain    ${logs}    authz outcome=${outcome} engine=cerbos kind=${expected_kind} action=${op}
-    ...    msg=Expected authproxy Cerbos outcome '${outcome}' for ${module}::${op} not found in recent logs.
+    ...    msg=Expected authgateway Cerbos outcome '${outcome}' for ${module}::${op} not found in recent logs.
 
-Authproxy Logs Should Show No-Token Rejection
-    [Documentation]    Local-k8s-only. Assert the authproxy recently logged a no-token rejection
+Authgateway Logs Should Show No-Token Rejection
+    [Documentation]    Local-k8s-only. Assert the Auth Gateway recently logged a no-token rejection
     ...                for ``${method} ${gateway_path}`` — corroborates a 401-for-missing-auth
     ...                HTTP assertion against the edge's own decision log. Generic across modules.
     [Arguments]    ${method}    ${gateway_path}    ${since}=90s
-    ${logs}=    Fetch Recent Pod Logs    ${LABS64IO_K8S_NAMESPACE}    ${AUTHPROXY_K8S_DEPLOYMENT}    ${since}
+    ${logs}=    Fetch Recent Pod Logs    ${LABS64IO_K8S_NAMESPACE}    ${AUTHGATEWAY_K8S_DEPLOYMENT}    ${since}
     Should Contain    ${logs}    Auth rejected [no-token] — ${method} ${gateway_path}
-    ...    msg=Expected authproxy no-token rejection log line for ${method} ${gateway_path} not found in recent logs.
+    ...    msg=Expected authgateway no-token rejection log line for ${method} ${gateway_path} not found in recent logs.

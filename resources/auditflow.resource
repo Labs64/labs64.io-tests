@@ -33,7 +33,7 @@ ${AUDITFLOW_TENANT2_SESSION}    auditflow-tenant-2
 ${INTERNALS_LEAK_PATTERN}    (?i)(\\sat\\s[\\w.$]+\\([\\w.]+:\\d+\\)|java\\.(lang|util|io)\\.|org\\.springframework|caused by|NullPointerException)
 
 # Local-k8s-only: AuditFlow's own backend deployment name for kubectl log corroboration (see
-# AGENTS.md "Local-only pod-log corroboration"). Shared namespace/authproxy deployment vars
+# AGENTS.md "Local-only pod-log corroboration"). Shared namespace/authgateway deployment vars
 # live in common.resource. Never used unless `Local Kubernetes Available` is true.
 ${AUDITFLOW_K8S_DEPLOYMENT}      %{AUDITFLOW_K8S_DEPLOYMENT=labs64io-auditflow}
 
@@ -105,17 +105,17 @@ Build Invalid Audit Event Missing Required Field
     ${event}=    Create Dictionary    sourceSystem=labs64.io-tests
     RETURN    ${event}
 
-Authproxy Logs Should Show No-Token Rejection For Publish
-    [Documentation]    Local-k8s-only. Thin wrapper over the generic `Authproxy Logs Should
+Authgateway Logs Should Show No-Token Rejection For Publish
+    [Documentation]    Local-k8s-only. Thin wrapper over the generic `Authgateway Logs Should
     ...                Show No-Token Rejection` fixed to POST /audit/publish.
     [Arguments]    ${since}=90s
-    Authproxy Logs Should Show No-Token Rejection    POST    ${AUDITFLOW_GATEWAY_PATH}    ${since}
+    Authgateway Logs Should Show No-Token Rejection    POST    ${AUDITFLOW_GATEWAY_PATH}    ${since}
 
-Authproxy Logs Should Show Authz Decision For Publish
-    [Documentation]    Local-k8s-only. Thin wrapper over the generic `Authproxy Logs Should
+Authgateway Logs Should Show Authz Decision For Publish
+    [Documentation]    Local-k8s-only. Thin wrapper over the generic `Authgateway Logs Should
     ...                Show Authz Decision` fixed to AuditFlow's publishEvent operation.
     [Arguments]    ${outcome}    ${since}=90s
-    Authproxy Logs Should Show Authz Decision    auditflow    publishEvent    ${outcome}    ${since}
+    Authgateway Logs Should Show Authz Decision    auditflow    publishEvent    ${outcome}    ${since}
 
 AuditFlow Backend Logs Should Contain Correlation Id
     [Documentation]    Local-k8s-only. Assert the AuditFlow backend's recent logs contain the
