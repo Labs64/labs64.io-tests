@@ -1,6 +1,6 @@
 """Reach a gateway by address while the routes match its name.
 
-An environment's HTTPRoutes match only their public host (``gateway.dev.labs64.io``). A run that reaches the
+An environment's HTTPRoutes match only their public host (for example ``gateway.example.com``). A run that reaches the
 gateway through a ``kubectl port-forward`` (``GATEWAY_BASE_URL=http://localhost:8000``) sends ``Host: localhost:8000``,
 and Traefik answers ``404 page not found`` to every call.
 

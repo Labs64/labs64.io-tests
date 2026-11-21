@@ -165,7 +165,7 @@ smoke:
     @just _run --include smoke --exclude not-ga --exclude known-bug {{ALL_TESTS}}
 
 # Run the full functional regression, excluding flaky, not-GA and known-bug cases (nightly shape). Name the modules an
-# environment runs to leave out the others: `just regression auditflow` (dev: AuditFlow and Reporting only)
+# environment runs to leave out the others: `just regression auditflow` (an environment that runs only AuditFlow)
 [group('tests')]
 regression *modules:
     #!/usr/bin/env bash
