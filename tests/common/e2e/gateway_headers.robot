@@ -47,3 +47,23 @@ Spoofed identity headers are replaced, not passed on
     Should Not Be Equal    ${received}[x-auth-tenant]    spoofed
     Should Not Contain    ${received}[x-auth-scopes]    admin
     Dictionary Should Not Contain Key    ${received}    authorization
+
+Alias spellings of the identity headers never reach the module
+    [Documentation]    Removing X-Auth-* is not enough when the edge forwards names that merely alias them
+    ...                (``X_Auth_User``, ``X.Auth.User``): a backend that derives variable names from header
+    ...                names (nginx ``$http_x_auth_user``, CGI/WSGI) reads the alias as the real header. Traefik
+    ...                must drop them (``aliasHeadersStrategy: delete``) or refuse the request (``reject``).
+    [Tags]    auth    tenant-isolation    regression    e2e    local-k8s-only
+    Create Session With Scope    ${SESSION}    ${AUDITFLOW_BASE_URL}    ${HEADER_ECHO_SCOPE}
+    ${aliases}=    Create Dictionary
+    ...    X_Auth_User=attacker    X.Auth.Tenant=spoofed    X_Auth_Scopes=admin    X.Auth.Request.Id=forged
+    ${response}=    Call Header Echo    ${SESSION}    ${aliases}
+    Pass Execution If    ${response.status_code} == 400    Rejected at the edge (aliasHeadersStrategy: reject): nothing reached the module.
+    ${received}=    Headers The Module Received    ${response}
+    # Positive control: the probe sees the gateway's own headers, so the absent aliases are the edge's doing.
+    Dictionary Should Contain Key    ${received}    x-auth-user
+    Should Not Be Equal    ${received}[x-auth-user]    attacker
+    FOR    ${name}    IN    @{received.keys()}
+        Should Not Match Regexp    ${name}    ^x[_.]auth
+        ...    msg=The alias header '${name}' reached the module (Traefik aliasHeadersStrategy).
+    END
