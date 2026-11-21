@@ -5,6 +5,9 @@ Library          Collections
 Library          String
 Library          OperatingSystem
 Library          Process
+# Environment variable GATEWAY_HOST_HEADER (optional): the Host header for a gateway reached by address while its routes
+# match its public name, e.g. a port-forward with GATEWAY_BASE_URL=http://localhost:8000. See GatewayHost.py.
+Library          GatewayHost.py
 
 *** Variables ***
 # All module URLs go through the Traefik/Auth Gateway edge — never straight to a

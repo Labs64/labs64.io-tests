@@ -164,10 +164,26 @@ test: install-venv
 smoke:
     @just _run --include smoke --exclude not-ga --exclude known-bug {{ALL_TESTS}}
 
-# Run the full functional regression, excluding flaky, not-GA and known-bug cases (nightly shape)
+# Run the full functional regression, excluding flaky, not-GA and known-bug cases (nightly shape). Name the modules an
+# environment runs to leave out the others: `just regression auditflow` (dev: AuditFlow and Reporting only)
 [group('tests')]
-regression:
-    @just _run --exclude flaky --exclude not-ga --exclude known-bug --exclude psp-stub {{ALL_TESTS}}
+regression *modules:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    paths="{{ALL_TESTS}}"
+    skip=()
+    if [ -n "{{modules}}" ]; then
+        paths="tests/"
+        for m in {{modules}}; do
+            [ -d "../labs64.io-$m/tests/e2e" ] && paths="$paths ../labs64.io-$m/tests/e2e/"
+        done
+        # the generated auth suite and the shared flows carry one tag per module
+        for m in auditflow payment-gateway checkout; do
+            case " {{modules}} " in *" $m "*) ;; *) skip+=(--exclude "$m") ;; esac
+        done
+    fi
+    # shellcheck disable=SC2086
+    just _run --exclude flaky --exclude not-ga --exclude known-bug --exclude psp-stub ${skip[@]+"${skip[@]}"} $paths
 
 # Run only the auth/authz matrix tests across all modules
 [group('tests')]

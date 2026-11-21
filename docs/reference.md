@@ -227,6 +227,12 @@ devcontainer. Override `KEYCLOAK_BASE_URL`, `KEYCLOAK_ROUTE_HOST`, `KEYCLOAK_REA
 `OIDC_CLIENT_ID`, and `OIDC_CLIENT_SECRET` when targeting another environment. Its realm must
 provide the same exact-scope/tenant-persona contract as the local declarative realm.
 
+A gateway reached by address (a `kubectl port-forward`, `GATEWAY_BASE_URL=http://localhost:8000`) while its routes match
+the public name needs `GATEWAY_HOST_HEADER=gateway.example.com`: every request to `GATEWAY_BASE_URL` then carries it as
+`Host` (`resources/GatewayHost.py`; requests to other addresses, and requests that set their own `Host`, are untouched).
+Without it Traefik answers `404 page not found` to every call. Dev's full recipe: `labs64.io-devops/OPERATIONS.md`, "Regression suite
+against dev's Keycloak". `just regression <module>...` leaves out the modules an environment does not run.
+
 ## CI
 
 The GitHub Actions workflow (`.github/workflows/labs64io-regression-suite.yml`) runs three jobs:
