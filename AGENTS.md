@@ -110,6 +110,12 @@ service deliberately has no read API. Current examples are the Auth Gateway's Ce
 and AuditFlow delivery identified by a caller-supplied `correlationId`. This is an explicit
 exception to "Gateway edge only" above for effects a pure HTTP client cannot observe.
 
+A third, related case is what a module *receives* from the gateway (RFC_03 Principle 1: the trusted `X-Auth-*`
+headers, never the caller's `Authorization`). No log shows it, so `tests/common/e2e/gateway_headers.robot` starts a
+header-echo backend (`resources/header-echo.yaml`) behind a route that copies AuditFlow's real filter chain at run
+time (`scripts/header_echo_route.py`), asserts on the headers the echo saw, and removes everything by label. It is
+`local-k8s-only` and follows the rules below; the requests still go through the gateway edge.
+
 Rules for this exception, enforced in `resources/common.resource` / `resources/auditflow.resource`:
 
 - Every such test calls `Skip Unless Local Kubernetes` first, which skips (never fails) unless

@@ -50,6 +50,7 @@ A change in one module can break another, and the break shows up at the edge: a 
 | **Payment Gateway** | Provider lifecycle with the NoOp provider and the authorization matrix |
 | **Auth enforcement** | A generated matrix across every route: the scopes it should and should not accept |
 | **Across modules** | A payment appearing in AuditFlow (local cluster only, via correlation-scoped logs) |
+| **Gateway contract** | What a module receives: the trusted `X-Auth-*` headers, replaced when spoofed, and never the caller's bearer token (local cluster only, via a header-echo backend behind a copy of AuditFlow's route) |
 
 Runs are tagged `smoke`, `regression`, `auth`, `flaky`, `not-ga` and `local-k8s-only`, so you can pick exactly the slice you need.
 
