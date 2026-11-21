@@ -50,6 +50,8 @@ spec:
             runAsNonRoot: true
             runAsUser: 65532
             capabilities: {drop: [ALL]}
+            # The modules' namespace enforces the `restricted` Pod Security Standard.
+            seccompProfile: {type: RuntimeDefault}
           volumeMounts: [{name: app, mountPath: /app}]
       volumes:
         - name: app
