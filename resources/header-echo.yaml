@@ -1,0 +1,65 @@
+# Test fixture of gateway_headers.robot: a backend that answers every request with the
+# headers it received. Applied and removed by the suite (label labs64.io/temp), never
+# part of a chart. The image is the ecosystem's Python line (tool-versions.env).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: header-echo-e2e
+  labels: {labs64.io/temp: header-echo-e2e}
+data:
+  echo.py: |
+    import json
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class Echo(BaseHTTPRequestHandler):
+        def handle_any(self):
+            self.rfile.read(int(self.headers.get("content-length") or 0))
+            body = json.dumps({"path": self.path, "headers": {k.lower(): v for k, v in self.headers.items()}}).encode()
+            self.send_response(200)
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        do_GET = do_POST = do_PUT = do_DELETE = handle_any
+
+    HTTPServer(("0.0.0.0", 8080), Echo).serve_forever()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: header-echo-e2e
+  labels: {labs64.io/temp: header-echo-e2e}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: header-echo-e2e}
+  template:
+    metadata:
+      labels: {app: header-echo-e2e, labs64.io/temp: header-echo-e2e}
+    spec:
+      containers:
+        - name: echo
+          image: python:3.15-slim
+          command: [python, /app/echo.py]
+          ports: [{containerPort: 8080}]
+          readinessProbe:
+            tcpSocket: {port: 8080}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities: {drop: [ALL]}
+          volumeMounts: [{name: app, mountPath: /app}]
+      volumes:
+        - name: app
+          configMap: {name: header-echo-e2e}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: header-echo-e2e
+  labels: {labs64.io/temp: header-echo-e2e}
+spec:
+  selector: {app: header-echo-e2e}
+  ports: [{port: 8080, targetPort: 8080}]
